@@ -129,15 +129,6 @@ def main():
         # Prepare the data table
         df = prepare_data_table(data)
 
-        # Plot the data
-        plt.plot(df.index, df["4. close"])
-        plt.xlabel("Date")
-        plt.ylabel("Closing Price")
-        plt.title(f"Forex Data: {from_symbol}/{to_symbol}")
-        plt.xticks(rotation=45)
-        plt.tight_layout()
-        plt.show()
-
         indicator = check_indicator(df)
         print(f"Indicator for {from_symbol}/{to_symbol}: ", indicator)
 
