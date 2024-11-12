@@ -1,5 +1,4 @@
 import requests
-import boto3
 import pandas as pd
 import matplotlib.pyplot as plt
 import smtplib
@@ -15,7 +14,7 @@ load_dotenv()
 def fetch_forex_data(from_symbol, to_symbol):
     import requests
 
-    api_key = "YOUR_ALPHA_VANTAGE_API_KEY"  # Replace with your actual API key
+    api_key = os.getenv("ALPHA_VANTAGE_API_KEY")  # Replace with your actual API key
     base_url = "https://www.alphavantage.co/query"
     params = {
         "function": "FX_DAILY",
