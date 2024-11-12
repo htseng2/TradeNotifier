@@ -12,15 +12,15 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-def fetch_forex_data():
+def fetch_forex_data(from_symbol, to_symbol):
     import requests
 
     api_key = "YOUR_ALPHA_VANTAGE_API_KEY"  # Replace with your actual API key
     base_url = "https://www.alphavantage.co/query"
     params = {
         "function": "FX_DAILY",
-        "from_symbol": "TWD",
-        "to_symbol": "JPY",
+        "from_symbol": from_symbol,
+        "to_symbol": to_symbol,
         "apikey": api_key,
         "outputsize": "full",  # Use "compact" for the last 100 data points
     }
@@ -121,28 +121,31 @@ def send_notification(message):
 
 
 def main():
-    data = fetch_forex_data()
-    # Debug by graphing the data
-    import pandas as pd
-    import matplotlib.pyplot as plt
+    currency_pairs = [("TWD", "JPY"), ("TWD", "USD"), ("TWD", "EUR")]
 
-    # Prepare the data table
-    df = prepare_data_table(data)
+    for from_symbol, to_symbol in currency_pairs:
+        data = fetch_forex_data(from_symbol, to_symbol)
 
-    # Plot the data
-    plt.plot(df.index, df["4. close"])
-    plt.xlabel("Date")
-    plt.ylabel("Closing Price")
-    plt.title("Forex Data: TWD/JPY")
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    plt.show()
+        # Prepare the data table
+        df = prepare_data_table(data)
 
-    indicator = check_indicator(df)
-    print("Indicator: ", indicator)
+        # Plot the data
+        plt.plot(df.index, df["4. close"])
+        plt.xlabel("Date")
+        plt.ylabel("Closing Price")
+        plt.title(f"Forex Data: {from_symbol}/{to_symbol}")
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        plt.show()
 
-    # Send notification
-    send_notification(indicator)
+        indicator = check_indicator(df)
+        print(f"Indicator for {from_symbol}/{to_symbol}: ", indicator)
+
+        # Craft message
+        message = f"The current indicator for {from_symbol}/{to_symbol} is: {indicator}"
+
+        # Send notification
+        send_notification(message)
 
 
 if __name__ == "__main__":
