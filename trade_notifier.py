@@ -2,6 +2,14 @@ import requests
 import boto3
 import pandas as pd
 import matplotlib.pyplot as plt
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 def fetch_forex_data():
@@ -64,9 +72,52 @@ def check_indicator(df):
         return "hold"
 
 
+def send_email_notification(subject, message, sender_email, receiver_email):
+    email_password = os.getenv("EMAIL_PASSWORD")
+
+    # Create the email
+    msg = MIMEMultipart()
+    msg["From"] = sender_email
+    msg["To"] = receiver_email
+    msg["Subject"] = subject
+    msg.attach(MIMEText(message, "plain"))
+
+    # Send the email
+    try:
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.starttls()
+            server.login(sender_email, email_password)
+            server.sendmail(sender_email, receiver_email, msg.as_string())
+        print("Email notification sent successfully.")
+    except Exception as e:
+        print(f"Failed to send email notification: {e}")
+
+
+def send_telegram_notification(message):
+    telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+    telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID")
+
+    url = f"https://api.telegram.org/bot{telegram_bot_token}/sendMessage"
+    payload = {"chat_id": telegram_chat_id, "text": message}
+    try:
+        response = requests.post(url, data=payload)
+        if response.status_code == 200:
+            print("Telegram notification sent successfully.")
+        else:
+            print(f"Failed to send Telegram notification: {response.text}")
+    except Exception as e:
+        print(f"Failed to send Telegram notification: {e}")
+
+
 def send_notification(message):
-    # Implement notification logic using AWS SNS or another service
-    pass
+    # Email configuration
+    # sender_email = "your_email@gmail.com"
+    # receiver_email = "receiver_email@example.com"
+    # email_subject = "Trade Notifier Alert"
+
+    # Send notifications
+    # send_email_notification(email_subject, message, sender_email, receiver_email)
+    send_telegram_notification(message)
 
 
 def main():
@@ -88,7 +139,10 @@ def main():
     plt.show()
 
     indicator = check_indicator(df)
-    print(""indicator)
+    print("Indicator: ", indicator)
+
+    # Send notification
+    send_notification(indicator)
 
 
 if __name__ == "__main__":
