@@ -120,7 +120,8 @@ def send_notification(message):
 
 
 def main():
-    currency_pairs = [("TWD", "JPY"), ("TWD", "USD"), ("TWD", "EUR")]
+    # Swap the currency pairs to reflect the correct perspective
+    currency_pairs = [("JPY", "TWD"), ("USD", "TWD"), ("EUR", "TWD")]
 
     for from_symbol, to_symbol in currency_pairs:
         data = fetch_forex_data(from_symbol, to_symbol)
