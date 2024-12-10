@@ -1,5 +1,6 @@
 from forex_utils import fetch_forex_data, prepare_data_table
 import matplotlib.pyplot as plt
+import pandas as pd  # Add pandas import if not already present
 
 
 def add_label_column(df, annual_expected_return, holding_period, spread):
@@ -24,6 +25,24 @@ def add_label_column(df, annual_expected_return, holding_period, spread):
     return df
 
 
+def add_moving_averages(df):
+    """Add moving averages to the DataFrame."""
+    df["MA_14"] = df["4. close"].rolling(window=14).mean()
+    df["MA_50"] = df["4. close"].rolling(window=50).mean()
+    df["MA_90"] = df["4. close"].rolling(window=90).mean()
+    return df
+
+
+def add_rsi(df, window=14):
+    """Add RSI (Relative Strength Index) to the DataFrame."""
+    delta = df["4. close"].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
+    rs = gain / loss
+    df["RSI"] = 100 - (100 / (1 + rs))
+    return df
+
+
 def plot_classification(df):
     """Plot the closing prices with classified buy and sell signals."""
     plt.figure(figsize=(10, 6))
@@ -36,6 +55,11 @@ def plot_classification(df):
     # Plot sell signals (label == 2) in red
     sell_signals = df[df["label"] == 2]
     plt.scatter(sell_signals.index, sell_signals["4. close"], color="red", label="Sell")
+
+    # Plot moving averages
+    # plt.plot(df.index, df["MA_14"], label="MA 14", color="orange")
+    # plt.plot(df.index, df["MA_50"], label="MA 50", color="blue")
+    # plt.plot(df.index, df["MA_90"], label="MA 90", color="purple")
 
     plt.legend()
     plt.title("Forex Closing Prices with Buy/Sell Signals")
@@ -58,11 +82,22 @@ def main():
         # Prepare the data table
         df = prepare_data_table(data)
 
+        # Add moving averages
+        df = add_moving_averages(df)
+
+        # Add RSI
+        df = add_rsi(df)
+
         # Add a column for label either "buy(0)" or "hold(1) or "sell(2)"
         df = add_label_column(df, annual_expected_return, holding_period, spread)
 
+        # Preview the data table
+        print(df.head())
+
         # Plot the data with classification
         plot_classification(df)
+
+        # Chop off the first and last 90 days to avoid NaN values
 
         # You can add more processing or save the labeled data here
 

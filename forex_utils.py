@@ -40,6 +40,6 @@ def prepare_data_table(data):
     df["4. close"] = df["4. close"].astype(float)
 
     # Fill missing data with the previous data
-    df = df.fillna(method="ffill")
+    df = df.ffill()
 
     return df
