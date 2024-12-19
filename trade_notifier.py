@@ -101,7 +101,7 @@ def main():
         gbm = lgb.Booster(model_file="lightgbm_model.txt")
 
         # Predict the label for the latest date
-        X_latest = df.drop(columns=["label"]).iloc[-1:]
+        X_latest = df.iloc[-1:]  # Get the latest row
         y_pred_latest = gbm.predict(X_latest, num_iteration=gbm.best_iteration)
         # Convert probabilities to class labels
         y_pred_latest = list(y_pred_latest[0]).index(max(y_pred_latest[0]))
