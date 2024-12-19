@@ -33,6 +33,17 @@ def add_moving_averages(df):
     return df
 
 
+def add_max_min(df):
+    """Add maximum and minimum values over 14, 50, and 90 days to the DataFrame."""
+    df["Max_14"] = df["4. close"].rolling(window=14).max()
+    df["Min_14"] = df["4. close"].rolling(window=14).min()
+    df["Max_50"] = df["4. close"].rolling(window=50).max()
+    df["Min_50"] = df["4. close"].rolling(window=50).min()
+    df["Max_90"] = df["4. close"].rolling(window=90).max()
+    df["Min_90"] = df["4. close"].rolling(window=90).min()
+    return df
+
+
 def add_rsi(df, window=14):
     """Add RSI (Relative Strength Index) to the DataFrame."""
     delta = df["4. close"].diff()
@@ -85,19 +96,31 @@ def main():
         # Add moving averages
         df = add_moving_averages(df)
 
+        # Add maximum and minimum values
+        df = add_max_min(df)
+
         # Add RSI
         df = add_rsi(df)
 
         # Add a column for label either "buy(0)" or "hold(1) or "sell(2)"
         df = add_label_column(df, annual_expected_return, holding_period, spread)
 
-        # Preview the data table
+        # Chop off the first and last days based on the longest holding period
+        longest_holding_period = holding_period[-1]
+        df = df.iloc[longest_holding_period:-longest_holding_period]
+
+        # Drop columns "1. open", "2. high", "3. low"
+        df = df.drop(columns=["1. open", "2. high", "3. low"])
+
+        # Save the DataFrame to a CSV file
+        df.to_csv("labeled_data.csv", index=False)
+
+        # Preview the data table head and tail
         print(df.head())
+        print(df.tail())
 
         # Plot the data with classification
         plot_classification(df)
-
-        # Chop off the first and last 90 days to avoid NaN values
 
         # You can add more processing or save the labeled data here
 

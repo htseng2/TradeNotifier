@@ -1,3 +1,5 @@
+from cProfile import label
+from data_labeler import add_max_min, add_moving_averages, add_rsi
 from forex_utils import fetch_forex_data, prepare_data_table
 import smtplib
 from email.mime.text import MIMEText
@@ -5,6 +7,7 @@ from email.mime.multipart import MIMEMultipart
 import os
 from dotenv import load_dotenv
 import requests
+import lightgbm as lgb
 
 # Load environment variables from .env file
 load_dotenv()
@@ -88,12 +91,39 @@ def main():
         # Prepare the data table
         df = prepare_data_table(data)
 
+        # Enhance the DataFrame with additional features
+        df = add_moving_averages(df)
+        df = add_max_min(df)
+        df = add_rsi(df)
+        df = df.drop(columns=["1. open", "2. high", "3. low"])
+
+        # Load the trained model
+        gbm = lgb.Booster(model_file="lightgbm_model.txt")
+
+        # Predict the label for the latest date
+        X_latest = df.drop(columns=["label"]).iloc[-1:]
+        y_pred_latest = gbm.predict(X_latest, num_iteration=gbm.best_iteration)
+        # Convert probabilities to class labels
+        y_pred_latest = list(y_pred_latest[0]).index(max(y_pred_latest[0]))
+
+        # Coverting the label to a string
+        predicted_label = ""
+        if y_pred_latest == 0:
+            predicted_label = "buy"
+        elif y_pred_latest == 1:
+            predicted_label = "hold"
+        else:
+            predicted_label = "sell"
+
         # Check the indicator
         indicator = check_indicator(df)
         print(f"Indicator for {from_symbol}/{to_symbol}: ", indicator)
 
         # Craft message
-        message = f"The current indicator for {from_symbol}/{to_symbol} is: {indicator}"
+        message = (
+            f"The current RSI indicator for {from_symbol}/{to_symbol} is: {indicator}\n"
+            f"The predicted label for the latest date is: {predicted_label}"
+        )
 
         # Send notification
         send_notification(message)
