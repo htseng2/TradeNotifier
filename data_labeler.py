@@ -9,7 +9,7 @@ def add_label_column(df, annual_expected_return, holding_period, spread):
 
     # Calculate the future return and update the label
     for index in range(len(df) - holding_period[1]):
-        current_price = df["4. close"].iloc[index]
+        current_price = df["Close"].iloc[index]
 
         # Check each future price within the holding period
         for future_index in range(index + holding_period[0], index + holding_period[1]):
@@ -17,7 +17,7 @@ def add_label_column(df, annual_expected_return, holding_period, spread):
             # Calculate the expected return for the specific number of days, including the spread
             expected_return = 1 + (annual_expected_return / 365) * days_ahead + spread
 
-            if df["4. close"].iloc[future_index] > current_price * expected_return:
+            if df["Close"].iloc[future_index] > current_price * expected_return:
                 df.at[df.index[index], "label"] = 0
                 df.at[df.index[future_index], "label"] = 2
                 break  # Exit the loop early if a buy signal is found
@@ -27,26 +27,26 @@ def add_label_column(df, annual_expected_return, holding_period, spread):
 
 def add_moving_averages(df):
     """Add moving averages to the DataFrame."""
-    df["MA_14"] = df["4. close"].rolling(window=14).mean()
-    df["MA_50"] = df["4. close"].rolling(window=50).mean()
-    df["MA_90"] = df["4. close"].rolling(window=90).mean()
+    df["MA_14"] = df["Close"].rolling(window=14).mean()
+    df["MA_50"] = df["Close"].rolling(window=50).mean()
+    df["MA_90"] = df["Close"].rolling(window=90).mean()
     return df
 
 
 def add_max_min(df):
     """Add maximum and minimum values over 14, 50, and 90 days to the DataFrame."""
-    df["Max_14"] = df["4. close"].rolling(window=14).max()
-    df["Min_14"] = df["4. close"].rolling(window=14).min()
-    df["Max_50"] = df["4. close"].rolling(window=50).max()
-    df["Min_50"] = df["4. close"].rolling(window=50).min()
-    df["Max_90"] = df["4. close"].rolling(window=90).max()
-    df["Min_90"] = df["4. close"].rolling(window=90).min()
+    df["Max_14"] = df["Close"].rolling(window=14).max()
+    df["Min_14"] = df["Close"].rolling(window=14).min()
+    df["Max_50"] = df["Close"].rolling(window=50).max()
+    df["Min_50"] = df["Close"].rolling(window=50).min()
+    df["Max_90"] = df["Close"].rolling(window=90).max()
+    df["Min_90"] = df["Close"].rolling(window=90).min()
     return df
 
 
 def add_rsi(df, window=14):
     """Add RSI (Relative Strength Index) to the DataFrame."""
-    delta = df["4. close"].diff()
+    delta = df["Close"].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
     rs = gain / loss
@@ -57,15 +57,15 @@ def add_rsi(df, window=14):
 def plot_classification(df):
     """Plot the closing prices with classified buy and sell signals."""
     plt.figure(figsize=(10, 6))
-    plt.plot(df.index, df["4. close"], label="close", color="gray", alpha=0.5)
+    plt.plot(df.index, df["Close"], label="close", color="gray", alpha=0.5)
 
     # Plot buy signals (label == 0) in green
     buy_signals = df[df["label"] == 0]
-    plt.scatter(buy_signals.index, buy_signals["4. close"], color="green", label="Buy")
+    plt.scatter(buy_signals.index, buy_signals["Close"], color="green", label="Buy")
 
     # Plot sell signals (label == 2) in red
     sell_signals = df[df["label"] == 2]
-    plt.scatter(sell_signals.index, sell_signals["4. close"], color="red", label="Sell")
+    plt.scatter(sell_signals.index, sell_signals["Close"], color="red", label="Sell")
 
     # Plot moving averages
     # plt.plot(df.index, df["MA_14"], label="MA 14", color="orange")

@@ -15,7 +15,7 @@ load_dotenv()
 
 def check_indicator(df):
     # Extract the closing prices from the DataFrame
-    closing_prices = df["4. close"]
+    closing_prices = df["Close"]
 
     # Calculate the RSI
     delta = closing_prices.diff()
@@ -99,6 +99,10 @@ def main():
         df = add_max_min(df)
         df = add_rsi(df)
         df = df.drop(columns=["1. open", "2. high", "3. low"])
+
+        # Printe the head and tail of the DataFrame
+        print(df.head())
+        print(df.tail())
 
         # Load the trained model
         gbm = lgb.Booster(model_file="lightgbm_model.txt")

@@ -38,6 +38,7 @@ def prepare_data_table(data):
 
     # Convert closing prices to float
     df["4. close"] = df["4. close"].astype(float)
+    df.rename(columns={"4. close": "Close"}, inplace=True)
 
     # Fill missing data with the previous data
     df = df.ffill()
