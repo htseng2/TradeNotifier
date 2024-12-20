@@ -87,7 +87,20 @@ def send_notification(message):
 
 def main():
     # Swap the currency pairs to reflect the correct perspective
-    currency_pairs = [("JPY", "TWD"), ("USD", "TWD"), ("EUR", "TWD")]
+    currency_pairs = [
+        ("USD", "TWD"),
+        ("CNY", "TWD"),
+        ("EUR", "TWD"),
+        ("NZD", "TWD"),
+        ("SGD", "TWD"),
+        ("GBP", "TWD"),
+        ("AUD", "TWD"),
+        ("CHF", "TWD"),
+        ("HKD", "TWD"),
+        ("CAD", "TWD"),
+        ("DKK", "TWD"),
+        ("JPY", "TWD"),
+    ]
 
     # Initialize an empty message
     full_message = ""
