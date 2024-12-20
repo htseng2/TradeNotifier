@@ -33,8 +33,9 @@ def check_indicator(df):
         return "hold"
 
 
-def send_email_notification(subject, message, sender_email, receiver_email):
-    email_password = os.getenv("EMAIL_PASSWORD")
+def send_email_notification(
+    subject, message, sender_email, receiver_email, gmail_password
+):
 
     # Create the email
     msg = MIMEMultipart()
@@ -47,7 +48,7 @@ def send_email_notification(subject, message, sender_email, receiver_email):
     try:
         with smtplib.SMTP("smtp.gmail.com", 587) as server:
             server.starttls()
-            server.login(sender_email, email_password)
+            server.login(sender_email, gmail_password)
             server.sendmail(sender_email, receiver_email, msg.as_string())
         print("Email notification sent successfully.")
     except Exception as e:
@@ -72,13 +73,16 @@ def send_telegram_notification(message):
 
 def send_notification(message):
     # Email configuration
-    # sender_email = "your_email@gmail.com"
-    # receiver_email = "receiver_email@example.com"
-    # email_subject = "Trade Notifier Alert"
+    sender_email = os.getenv("SENDER_EMAIL")
+    receiver_email = os.getenv("RECEIVER_EMAIL")
+    gmail_password = os.getenv("GMAIL_PASSWORD")
+    email_subject = "Trade Notifier Alert"
 
     # Send notifications
-    # send_email_notification(email_subject, message, sender_email, receiver_email)
     send_telegram_notification(message)
+    send_email_notification(
+        email_subject, message, sender_email, receiver_email, gmail_password
+    )
 
 
 def main():
