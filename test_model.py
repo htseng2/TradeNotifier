@@ -1,15 +1,28 @@
 import pandas as pd
 import lightgbm as lgb
+import argparse
 
 from data_labeler_from_file import plot_classification
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Process currency abbreviation.")
+    parser.add_argument(
+        "currency",
+        type=str,
+        nargs="?",
+        default="USD",
+        help="Currency abbreviation (e.g., EUR). Default is USD.",
+    )
+    args = parser.parse_args()
+
+    currency = args.currency
+
     # Load the trained model
     gbm = lgb.Booster(model_file="lightgbm_model.txt")
 
     # Read the DataFrame from the CSV file
-    df = pd.read_csv("labeled_data/labeled_data_JPY.csv")
+    df = pd.read_csv(f"labeled_data/labeled_data_{currency}.csv")
 
     # Prepare features (assuming the label column is not present in the test data)
     X = df.drop(columns=["label"])
