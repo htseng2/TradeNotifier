@@ -85,6 +85,9 @@ def main():
     # Swap the currency pairs to reflect the correct perspective
     currency_pairs = [("JPY", "TWD"), ("USD", "TWD"), ("EUR", "TWD")]
 
+    # Initialize an empty message
+    full_message = ""
+
     for from_symbol, to_symbol in currency_pairs:
         data = fetch_forex_data(from_symbol, to_symbol)
 
@@ -119,14 +122,14 @@ def main():
         indicator = check_indicator(df)
         print(f"Indicator for {from_symbol}/{to_symbol}: ", indicator)
 
-        # Craft message
-        message = (
+        # Append message for the current pair
+        full_message += (
             f"The current RSI indicator for {from_symbol}/{to_symbol} is: {indicator}\n"
-            f"The predicted label for the latest date is: {predicted_label}"
+            f"The predicted label for the latest date is: {predicted_label}\n\n"
         )
 
-        # Send notification
-        send_notification(message)
+    # Send the full notification
+    send_notification(full_message)
 
 
 if __name__ == "__main__":
