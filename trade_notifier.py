@@ -86,7 +86,7 @@ def send_notification(message):
 
 
 def main():
-    # Swap the currency pairs to reflect the correct perspective
+    # Alpha Vantage API only supports up to 10 requests per minute, and 25 requests per day
     currency_pairs = [
         ("USD", "TWD"),
         ("CNY", "TWD"),
@@ -96,10 +96,11 @@ def main():
         ("GBP", "TWD"),
         ("AUD", "TWD"),
         ("CHF", "TWD"),
-        ("HKD", "TWD"),
         ("CAD", "TWD"),
-        ("DKK", "TWD"),
         ("JPY", "TWD"),
+        # Less financially sound and less liquid currencies
+        # ("HKD", "TWD"),
+        # ("DKK", "TWD"),
     ]
 
     # Initialize an empty message
@@ -140,13 +141,13 @@ def main():
             predicted_label = "sell"
 
         # Check the indicator
-        indicator = check_indicator(df)
-        print(f"Indicator for {from_symbol}/{to_symbol}: ", indicator)
+        # indicator = check_indicator(df)
+        # print(f"Indicator for {from_symbol}/{to_symbol}: ", indicator)
 
         # Append message for the current pair
         full_message += (
-            f"The current RSI indicator for {from_symbol}/{to_symbol} is: {indicator}\n"
-            f"The predicted label for the latest date is: {predicted_label}\n\n"
+            # f"The current RSI indicator for {from_symbol}/{to_symbol} is: {indicator}\n"
+            f"The predicted label for {from_symbol}/{to_symbol} is: {predicted_label}\n\n"
         )
 
     # Send the full notification
