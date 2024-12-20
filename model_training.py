@@ -14,7 +14,7 @@ def prepare_features_labels(df):
 
 def main():
     # Read the DataFrame from the CSV file
-    df = pd.read_csv("labeled_data.csv")
+    df = pd.read_csv("labeled_data/labeled_data.csv")
 
     # Prepare features and labels
     X, y = prepare_features_labels(df)

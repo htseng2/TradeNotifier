@@ -146,7 +146,7 @@ def main():
     holding_period = (14, 90)
 
     for from_symbol, to_symbol in currency_pairs:
-        file_path = f"Forex - {from_symbol}.csv"
+        file_path = f"Forex/Forex - {from_symbol}.csv"
         df = fetch_forex_data_from_file(file_path)
 
         # # Prepare the data table
@@ -169,7 +169,7 @@ def main():
         df = df.iloc[longest_holding_period:-longest_holding_period]
 
         # Save the DataFrame to a CSV file
-        save_path = f"labeled_data_{from_symbol}.csv"
+        save_path = f"labeled_data/labeled_data_{from_symbol}.csv"
         df.to_csv(save_path, index=False)
 
         # # Print head and tail of the DataFrame
@@ -182,11 +182,11 @@ def main():
     # Combine all the labeled data and output to a single CSV file
     combined_df = pd.concat(
         [
-            pd.read_csv(f"labeled_data_{from_symbol}.csv")
+            pd.read_csv(f"labeled_data/labeled_data_{from_symbol}.csv")
             for from_symbol, _ in currency_pairs
         ]
     )
-    combined_df.to_csv("labeled_data.csv", index=False)
+    combined_df.to_csv("labeled_data/labeled_data.csv", index=False)
 
 
 if __name__ == "__main__":

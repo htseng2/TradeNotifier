@@ -135,7 +135,7 @@ def main():
         df = df.drop(columns=["1. open", "2. high", "3. low"])
 
         # Save the DataFrame to a CSV file
-        df.to_csv("labeled_data.csv", index=False)
+        df.to_csv("labeled_data/labeled_data.csv", index=False)
 
         # Preview the data table head and tail
         print(df.head())

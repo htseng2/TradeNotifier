@@ -9,7 +9,7 @@ def main():
     gbm = lgb.Booster(model_file="lightgbm_model.txt")
 
     # Read the DataFrame from the CSV file
-    df = pd.read_csv("labeled_data_JPY.csv")
+    df = pd.read_csv("labeled_data/labeled_data_JPY.csv")
 
     # Prepare features (assuming the label column is not present in the test data)
     X = df.drop(columns=["label"])
@@ -24,7 +24,7 @@ def main():
     df["predicted_label"] = y_pred
 
     # Save the DataFrame with the predicted labels to a new CSV file
-    df.to_csv("labeled_data_with_predictions.csv", index=False)
+    df.to_csv("labeled_data/labeled_data_with_predictions.csv", index=False)
 
     # Preview the data table head and tail
     print(df.head())
