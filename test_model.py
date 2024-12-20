@@ -1,7 +1,7 @@
 import pandas as pd
 import lightgbm as lgb
 
-from data_labeler import plot_classification
+from data_labeler_from_file import plot_classification
 
 
 def main():
@@ -9,7 +9,7 @@ def main():
     gbm = lgb.Booster(model_file="lightgbm_model.txt")
 
     # Read the DataFrame from the CSV file
-    df = pd.read_csv("labeled_data.csv")
+    df = pd.read_csv("labeled_data_JPY.csv")
 
     # Prepare features (assuming the label column is not present in the test data)
     X = df.drop(columns=["label"])

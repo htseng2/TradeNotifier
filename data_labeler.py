@@ -79,12 +79,34 @@ def plot_classification(df):
     plt.show()
 
 
+# Constants
+spread_table = {
+    ("USD", "TWD"): 0.003,
+    ("CNY", "TWD"): 0.003,
+    ("EUR", "TWD"): 0.012,
+    ("NZD", "TWD"): 0.012,
+    ("SGD", "TWD"): 0.013,
+    ("GBP", "TWD"): 0.013,
+    ("AUD", "TWD"): 0.014,
+    ("CHF", "TWD"): 0.015,
+    ("HKD", "TWD"): 0.017,
+    ("CAD", "TWD"): 0.017,
+    ("DKK", "TWD"): 0.018,
+    ("JPY", "TWD"): 0.02,
+    # Not considering the following pairs for now
+    ("SEK", "TWD"): 0.03,
+    ("THB", "TWD"): 0.032,
+    ("ZAR", "TWD"): 0.055,
+    ("TRY", "TWD"): 0.48,
+}
+
+
 def main():
     # Swap the currency pairs to reflect the correct perspective
     # currency_pairs = [("JPY", "TWD"), ("USD", "TWD"), ("EUR", "TWD")]
     currency_pairs = [("JPY", "TWD")]
     annual_expected_return = 0.05
-    spread = 0.01  # Spread is transaction cost usually from 0.005 to 0.03
+    spread = 0.02  # Spread is transaction cost usually from 0.005 to 0.03
     holding_period = (14, 90)
 
     for from_symbol, to_symbol in currency_pairs:
