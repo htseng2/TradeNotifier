@@ -89,7 +89,11 @@ def add_label_column(df, annual_expected_return, holding_period, spread):
         for future_index in range(index + holding_period[0], index + holding_period[1]):
             days_ahead = future_index - index
             # Calculate the expected return for the specific number of days, including the spread
-            expected_return = 1 + (annual_expected_return / 365) * days_ahead + spread
+            expected_return = (
+                1
+                + (annual_expected_return / 365) * days_ahead
+                + (spread * 2)  # Multiply by 2 to account for both buy and sell spreads
+            )
 
             if df["Close"].iloc[future_index] > current_price * expected_return:
                 df.at[df.index[index], "label"] = 0
