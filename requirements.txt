@@ -96,7 +96,9 @@ rpds-py==0.21.0
 s3transfer==0.10.3
 scikit-learn==1.6.0
 scipy==1.14.1
+seaborn==0.13.2
 Send2Trash==1.8.3
+setuptools==75.6.0
 six==1.16.0
 sniffio==1.3.1
 soupsieve==2.6
