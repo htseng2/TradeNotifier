@@ -8,8 +8,48 @@ from sklearn.preprocessing import label_binarize
 
 
 def plot_classification(df):
-    # Your existing plot_classification function code
-    pass
+    """Plot the closing prices with classified buy and sell signals."""
+    plt.figure(figsize=(10, 6))
+    plt.plot(df.index, df["Close"], label="close", color="gray", alpha=0.5)
+
+    # Plot buy signals (label == 0) in green
+    buy_signals = df[df["label"] == 0]
+    plt.scatter(buy_signals.index, buy_signals["Close"], color="green", label="Buy")
+
+    # Plot sell signals (label == 2) in red
+    sell_signals = df[df["label"] == 2]
+    plt.scatter(sell_signals.index, sell_signals["Close"], color="red", label="Sell")
+
+    # Plot predicted buy signals (predicted_label == 0) in light green
+    predicted_buy_signals = df[df["predicted_label"] == 0]
+    plt.scatter(
+        predicted_buy_signals.index,
+        predicted_buy_signals["Close"],
+        color="lightgreen",
+        label="Predicted Buy",
+        marker="x",
+    )
+
+    # Plot predicted sell signals (predicted_label == 2) in light red
+    predicted_sell_signals = df[df["predicted_label"] == 2]
+    plt.scatter(
+        predicted_sell_signals.index,
+        predicted_sell_signals["Close"],
+        color="lightcoral",
+        label="Predicted Sell",
+        marker="x",
+    )
+
+    # Plot moving averages
+    # plt.plot(df.index, df["MA_14"], label="MA 14", color="orange")
+    # plt.plot(df.index, df["MA_50"], label="MA 50", color="blue")
+    # plt.plot(df.index, df["MA_90"], label="MA 90", color="purple")
+
+    plt.legend()
+    plt.title("Forex Closing Prices with Buy/Sell Signals")
+    plt.xlabel("Date")
+    plt.ylabel("Price")
+    plt.show()
 
 
 def main():
