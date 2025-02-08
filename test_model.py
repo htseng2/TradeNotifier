@@ -65,8 +65,8 @@ def main():
 
     currency = args.currency
 
-    # Load the trained model
-    gbm = lgb.Booster(model_file="lightgbm_model.txt")
+    # Load the trained model from the models folder
+    gbm = lgb.Booster(model_file=f"models/lightgbm_model_20250208_173141.txt")
 
     # Read the DataFrame from the CSV file
     df = pd.read_csv(f"labeled_data/labeled_data_{currency}.csv")

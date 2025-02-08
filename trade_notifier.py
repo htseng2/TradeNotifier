@@ -1,5 +1,15 @@
 from cProfile import label
-from data_labeler import add_max_min, add_moving_averages, add_rsi
+from data_labeler_from_file import (
+    add_atr,
+    add_bbands,
+    add_daily_return,
+    add_macd,
+    add_stoch,
+    add_weekly_return,
+    add_max_min,
+    add_moving_averages,
+    add_rsi,
+)
 from forex_utils import fetch_forex_data, prepare_data_table
 import smtplib
 from email.mime.text import MIMEText
@@ -113,17 +123,23 @@ def main():
         df = prepare_data_table(data)
 
         # Enhance the DataFrame with additional features
-        df = add_moving_averages(df)
         df = add_max_min(df)
+        df = add_moving_averages(df)
+        df = add_macd(df)
         df = add_rsi(df)
+        df = add_stoch(df)
+        df = add_bbands(df)
+        df = add_atr(df)
+        df = add_daily_return(df)
+        df = add_weekly_return(df)
         df = df.drop(columns=["1. open", "2. high", "3. low"])
 
         # Printe the head and tail of the DataFrame
         print(df.head())
         print(df.tail())
 
-        # Load the trained model
-        gbm = lgb.Booster(model_file="lightgbm_model.txt")
+        # Load the trained model from the live_models folder depending on the currency pair
+        gbm = lgb.Booster(model_file=f"live_models/lightgbm_model_{from_symbol}.txt")
 
         # Predict the label for the latest date
         X_latest = df.iloc[-1:]  # Get the latest row

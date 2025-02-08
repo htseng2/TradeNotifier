@@ -3,6 +3,7 @@ import lightgbm as lgb
 from lightgbm import early_stopping
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
+import datetime
 
 
 def prepare_features_labels(df):
@@ -48,8 +49,11 @@ def main():
         callbacks=[early_stopping(stopping_rounds=10)],
     )
 
-    # Save the model
-    gbm.save_model("lightgbm_model.txt")
+    # Timestamp
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    # Save the model in the models folder
+    gbm.save_model(f"models/lightgbm_model_{timestamp}.txt")
 
     # Predict on the test set
     y_pred = gbm.predict(X_test, num_iteration=gbm.best_iteration)

@@ -120,20 +120,27 @@ def add_label_column(df, annual_expected_return, holding_period, spread):
     for index in range(len(df) - holding_period[1]):
         current_price = df["Close"].iloc[index]
 
-        # Check each future price within the holding period
-        for future_index in range(index + holding_period[0], index + holding_period[1]):
-            days_ahead = future_index - index
-            # Calculate the expected return for the specific number of days, including the spread
-            expected_return = (
-                1
-                + (annual_expected_return / 365) * days_ahead
-                + (spread * 2)  # Multiply by 2 to account for both buy and sell spreads
-            )
+        LOOK_AHEAD_DAYS = 21
+        EXPECTED_RETURN_PER_TRADE = 0.005
 
-            if df["Close"].iloc[future_index] > current_price * expected_return:
+        # Check each future price within the holding period
+        for future_index in range(index, index + LOOK_AHEAD_DAYS):
+            # Calculate the threshold (expected return) for the specific number of days, including the spread
+            expected_return = 1 + EXPECTED_RETURN_PER_TRADE + spread
+            threshold = current_price * expected_return
+            if df["Close"].iloc[future_index] > threshold:
                 df.at[df.index[index], "label"] = 0
-                df.at[df.index[future_index], "label"] = 2
+                # df.at[df.index[future_index], "label"] = 2
                 break  # Exit the loop early if a buy signal is found
+
+            # If all the future prices (now + LOOK_AHEAD_DAYS) are below the current price, set the label to 2
+            is_all_below_threshold = all(
+                df["Close"].iloc[future_index] <= current_price
+                for future_index in range(index, index + LOOK_AHEAD_DAYS)
+            )
+            if is_all_below_threshold:
+                df.at[df.index[index], "label"] = 2
+                break  # Exit the loop early if a sell signal is found
 
     return df
 
@@ -180,7 +187,7 @@ def main():
         ("JPY", "TWD"),
     ]
     # currency_pairs = [("JPY", "TWD")]
-    annual_expected_return = 0.05
+    annual_expected_return = 0.20
     spread = 0.02  # Spread is transaction cost usually from 0.005 to 0.03
     holding_period = (14, 90)
 
@@ -190,6 +197,9 @@ def main():
 
         # # Prepare the data table
         df = prepare_data_table(df)
+
+        # # Add maximum and minimum values
+        df = add_max_min(df)
 
         # # Add moving averages (Total Indicators: 2)
         df = add_moving_averages(df)
@@ -214,9 +224,6 @@ def main():
 
         # # Add weekly return (Total Indicators: 9)
         df = add_weekly_return(df)
-
-        # # Add maximum and minimum values
-        df = add_max_min(df)
 
         # # Add a column for label either "buy(0)" or "hold(1) or "sell(2)"
         df = add_label_column(df, annual_expected_return, holding_period, spread)
