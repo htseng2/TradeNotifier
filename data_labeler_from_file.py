@@ -39,20 +39,65 @@ def prepare_data_table(df):
     # Convert closing prices to float
     df["Close"] = df["Close"].astype(float)
 
-    # Resample to ensure all dates are included
-    df = df.resample("D").ffill()
-
-    # Fill missing data with the previous data
-    df = df.ffill()
+    # Remove weekends
+    df = df[df.index.dayofweek < 5]  # 0=Monday, 4=Friday
 
     return df
 
 
 def add_moving_averages(df):
     """Add moving averages to the DataFrame."""
-    df["MA_14"] = df["Close"].rolling(window=14).mean()
     df["MA_50"] = df["Close"].rolling(window=50).mean()
-    df["MA_90"] = df["Close"].rolling(window=90).mean()
+    df["MA_200"] = df["Close"].rolling(window=200).mean()
+    return df
+
+
+def add_macd(df):
+    """Add MACD to the DataFrame."""
+    df["MACD"] = (
+        df["Close"].ewm(span=12, adjust=False).mean()
+        - df["Close"].ewm(span=26, adjust=False).mean()
+    )
+    return df
+
+
+def add_rsi(df, window=14):
+    """Add RSI (Relative Strength Index) to the DataFrame."""
+    delta = df["Close"].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
+    rs = gain / loss
+    df["RSI"] = 100 - (100 / (1 + rs))
+    return df
+
+
+def add_stoch(df):
+    """Add stochastic oscillator to the DataFrame."""
+    df["Stoch"] = (df["Close"] - df["Min_14"]) / (df["Max_14"] - df["Min_14"])
+    return df
+
+
+def add_bbands(df):
+    """Add Bollinger Bands to the DataFrame."""
+    df["BBands"] = df["Close"].rolling(window=20).mean()
+    return df
+
+
+def add_atr(df):
+    """Add Average True Range to the DataFrame."""
+    df["ATR"] = df["Close"].rolling(window=14).mean()
+    return df
+
+
+def add_daily_return(df):
+    """Add daily return to the DataFrame."""
+    df["Daily_Return"] = df["Close"].pct_change()
+    return df
+
+
+def add_weekly_return(df):
+    """Add weekly return to the DataFrame."""
+    df["Weekly_Return"] = df["Close"].pct_change(periods=5)
     return df
 
 
@@ -64,16 +109,6 @@ def add_max_min(df):
     df["Min_50"] = df["Close"].rolling(window=50).min()
     df["Max_90"] = df["Close"].rolling(window=90).max()
     df["Min_90"] = df["Close"].rolling(window=90).min()
-    return df
-
-
-def add_rsi(df, window=14):
-    """Add RSI (Relative Strength Index) to the DataFrame."""
-    delta = df["Close"].diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
-    rs = gain / loss
-    df["RSI"] = 100 - (100 / (1 + rs))
     return df
 
 
@@ -156,14 +191,32 @@ def main():
         # # Prepare the data table
         df = prepare_data_table(df)
 
-        # # Add moving averages
+        # # Add moving averages (Total Indicators: 2)
         df = add_moving_averages(df)
+
+        # # Add MACD (Total Indicators: 3)
+        df = add_macd(df)
+
+        # # Add RSI (Total Indicators: 4)
+        df = add_rsi(df)
+
+        # # Add stochastic oscillator (Total Indicators: 5)
+        df = add_stoch(df)
+
+        # # Add Bollinger Bands (Total Indicators: 6)
+        df = add_bbands(df)
+
+        # # Add Average True Range (Total Indicators: 7)
+        df = add_atr(df)
+
+        # # Add daily return (Total Indicators: 8)
+        df = add_daily_return(df)
+
+        # # Add weekly return (Total Indicators: 9)
+        df = add_weekly_return(df)
 
         # # Add maximum and minimum values
         df = add_max_min(df)
-
-        # # Add RSI
-        df = add_rsi(df)
 
         # # Add a column for label either "buy(0)" or "hold(1) or "sell(2)"
         df = add_label_column(df, annual_expected_return, holding_period, spread)
