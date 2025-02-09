@@ -2,13 +2,18 @@ from cProfile import label
 from data_labeler_from_file import (
     add_atr,
     add_bbands,
+    add_bearish_candlestick_patterns,
     add_daily_return,
+    add_label_column,
     add_macd,
+    add_pivot_points,
     add_stoch,
     add_weekly_return,
     add_max_min,
     add_moving_averages,
     add_rsi,
+    calculate_days_since_last_buy,
+    calculate_return_since_last_buy,
 )
 from forex_utils import fetch_forex_data, prepare_data_table
 import smtplib
@@ -116,6 +121,13 @@ def main():
     # Initialize an empty message
     full_message = ""
 
+    # Parameters for the label column
+    annual_expected_return = 0.20
+    spread = 0.02  # Spread is transaction cost usually from 0.005 to 0.03
+    holding_period = (1, 60)
+    look_ahead_days = 21
+    expected_return_per_trade = 0.005
+
     for from_symbol, to_symbol in currency_pairs:
         data = fetch_forex_data(from_symbol, to_symbol)
 
@@ -126,20 +138,29 @@ def main():
         df = add_max_min(df)
         df = add_moving_averages(df)
         df = add_macd(df)
-        df = add_rsi(df)
-        df = add_stoch(df)
-        df = add_bbands(df)
         df = add_atr(df)
-        df = add_daily_return(df)
-        df = add_weekly_return(df)
-        df = df.drop(columns=["1. open", "2. high", "3. low"])
+        df = add_pivot_points(df)
+        df = add_bearish_candlestick_patterns(df)
+        df = add_label_column(
+            df,
+            annual_expected_return,
+            holding_period,
+            spread,
+            look_ahead_days,
+            expected_return_per_trade,
+        )
+        df = calculate_return_since_last_buy(df)
+        df = calculate_days_since_last_buy(df)
+        df = df.drop(columns=["1. open", "2. high", "3. low", "label"])
 
         # Printe the head and tail of the DataFrame
         print(df.head())
         print(df.tail())
 
+        # Load the latest trained model from the live_models folder
+        gbm = lgb.Booster(model_file=f"live_models/lightgbm_model_20250209_131215.txt")
         # Load the trained model from the live_models folder depending on the currency pair
-        gbm = lgb.Booster(model_file=f"live_models/lightgbm_model_{from_symbol}.txt")
+        # gbm = lgb.Booster(model_file=f"live_models/lightgbm_model_{from_symbol}.txt")
 
         # Predict the label for the latest date
         X_latest = df.iloc[-1:]  # Get the latest row

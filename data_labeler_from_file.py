@@ -180,6 +180,7 @@ def add_label_column(
 ):
     """Add a label column to the DataFrame and prefill with 1."""
     df["label"] = 1
+    last_buy_index = None
 
     # Calculate the future return and update the label
     for index in range(len(df) - holding_period[1]):
@@ -192,17 +193,16 @@ def add_label_column(
             threshold = current_price * expected_return
             if df["Close"].iloc[future_index] > threshold:
                 df.at[df.index[index], "label"] = 0
-                # df.at[df.index[future_index], "label"] = 2
+                last_buy_index = df.index[
+                    index
+                ]  # Ensure last_buy_index is a valid index
                 break  # Exit the loop early if a buy signal is found
 
-            # If all the future prices (now + LOOK_AHEAD_DAYS) are below the current price, set the label to 2
-            is_all_below_threshold = all(
-                df["Close"].iloc[future_index] <= current_price
-                for future_index in range(index, index + look_ahead_days)
-            )
-            if is_all_below_threshold:
+        # Check for sell signal
+        if last_buy_index is not None:
+            buy_price = df.at[last_buy_index, "Close"]
+            if current_price > (buy_price * (1 + expected_return_per_trade + spread)):
                 df.at[df.index[index], "label"] = 2
-                break  # Exit the loop early if a sell signal is found
 
     return df
 
