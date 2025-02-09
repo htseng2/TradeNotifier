@@ -2,7 +2,7 @@ import pandas as pd
 import lightgbm as lgb
 from lightgbm import early_stopping
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, confusion_matrix
 import datetime
 
 
@@ -34,10 +34,15 @@ def main():
         "objective": "multiclass",
         "num_class": 3,  # Number of classes
         "metric": "multi_logloss",
-        "boosting_type": "gbdt",
+        "learning_rate": 0.1,
         "num_leaves": 31,
-        "learning_rate": 0.05,
-        "feature_fraction": 0.9,
+        "max_depth": 12,
+        "min_data_in_leaf": 20,
+        "feature_fraction": 0.8,
+        "bagging_fraction": 0.8,
+        "bagging_freq": 1,
+        "lambda_l2": 1.0,  # small L2 regularization
+        "verbosity": -1,  # less logging
     }
 
     # Train the model
@@ -64,6 +69,10 @@ def main():
     # Evaluate the model
     accuracy = accuracy_score(y_test, y_pred)
     print(f"Accuracy: {accuracy}")
+
+    # Calculate and print the confusion matrix
+    conf_matrix = confusion_matrix(y_test, y_pred)
+    print(f"Confusion Matrix:\n{conf_matrix}")
 
 
 if __name__ == "__main__":

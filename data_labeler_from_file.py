@@ -112,7 +112,72 @@ def add_max_min(df):
     return df
 
 
-def add_label_column(df, annual_expected_return, holding_period, spread):
+def add_bearish_candlestick_patterns(df):
+    """Add bearish candlestick patterns to the DataFrame."""
+    df["Bearish_Candlestick_Patterns"] = df["Close"].rolling(window=3).min()
+    return df
+
+
+def calculate_return_since_last_buy(df):
+    """Calculate the return since the last buy signal (label == 0) and add it to the DataFrame."""
+    last_buy_index = None
+    return_since_buy = []
+
+    for index, row in df.iterrows():
+        if row["label"] == 0:
+            if last_buy_index is not None:
+                buy_price = df.at[last_buy_index, "Close"]
+                current_price = row["Close"]
+                return_since_buy.append((current_price - buy_price) / buy_price)
+            else:
+                return_since_buy.append(0)
+            last_buy_index = index
+        elif last_buy_index is not None:
+            buy_price = df.at[last_buy_index, "Close"]
+            current_price = row["Close"]
+            return_since_buy.append((current_price - buy_price) / buy_price)
+        else:
+            return_since_buy.append(0)  # No return if no buy signal has occurred yet
+
+    df["Return_Since_Last_Buy"] = return_since_buy
+    return df
+
+
+def calculate_days_since_last_buy(df):
+    """Calculate the number of days since the last buy signal (label == 0) and add it to the DataFrame."""
+    last_buy_index = None
+    days_since_buy = []
+
+    for index, row in df.iterrows():
+        if row["label"] == 0:
+            if last_buy_index is not None:
+                days_since_buy.append((index - last_buy_index).days)
+            else:
+                days_since_buy.append(0)
+            last_buy_index = index
+        elif last_buy_index is not None:
+            days_since_buy.append((index - last_buy_index).days)
+        else:
+            days_since_buy.append(0)
+
+    df["Days_Since_Last_Buy"] = days_since_buy
+    return df
+
+
+def add_pivot_points(df):
+    """Add Pivot Points / Swing High-Low Features to the DataFrame."""
+    df["Pivot_Points"] = df["Close"].rolling(window=3).max()
+    return df
+
+
+def add_label_column(
+    df,
+    annual_expected_return,
+    holding_period,
+    spread,
+    look_ahead_days,
+    expected_return_per_trade,
+):
     """Add a label column to the DataFrame and prefill with 1."""
     df["label"] = 1
 
@@ -120,13 +185,10 @@ def add_label_column(df, annual_expected_return, holding_period, spread):
     for index in range(len(df) - holding_period[1]):
         current_price = df["Close"].iloc[index]
 
-        LOOK_AHEAD_DAYS = 21
-        EXPECTED_RETURN_PER_TRADE = 0.005
-
         # Check each future price within the holding period
-        for future_index in range(index, index + LOOK_AHEAD_DAYS):
+        for future_index in range(index, index + look_ahead_days):
             # Calculate the threshold (expected return) for the specific number of days, including the spread
-            expected_return = 1 + EXPECTED_RETURN_PER_TRADE + spread
+            expected_return = 1 + expected_return_per_trade + spread
             threshold = current_price * expected_return
             if df["Close"].iloc[future_index] > threshold:
                 df.at[df.index[index], "label"] = 0
@@ -136,7 +198,7 @@ def add_label_column(df, annual_expected_return, holding_period, spread):
             # If all the future prices (now + LOOK_AHEAD_DAYS) are below the current price, set the label to 2
             is_all_below_threshold = all(
                 df["Close"].iloc[future_index] <= current_price
-                for future_index in range(index, index + LOOK_AHEAD_DAYS)
+                for future_index in range(index, index + look_ahead_days)
             )
             if is_all_below_threshold:
                 df.at[df.index[index], "label"] = 2
@@ -157,11 +219,6 @@ def plot_classification(df):
     # Plot sell signals (label == 2) in red
     sell_signals = df[df["label"] == 2]
     plt.scatter(sell_signals.index, sell_signals["Close"], color="red", label="Sell")
-
-    # Plot moving averages
-    # plt.plot(df.index, df["MA_14"], label="MA 14", color="orange")
-    # plt.plot(df.index, df["MA_50"], label="MA 50", color="blue")
-    # plt.plot(df.index, df["MA_90"], label="MA 90", color="purple")
 
     plt.legend()
     plt.title("Forex Closing Prices with Buy/Sell Signals")
@@ -189,44 +246,50 @@ def main():
     # currency_pairs = [("JPY", "TWD")]
     annual_expected_return = 0.20
     spread = 0.02  # Spread is transaction cost usually from 0.005 to 0.03
-    holding_period = (14, 90)
+    holding_period = (1, 60)
+    look_ahead_days = 21
+    expected_return_per_trade = 0.005
 
     for from_symbol, to_symbol in currency_pairs:
         file_path = f"Forex/Forex - {from_symbol}.csv"
         df = fetch_forex_data_from_file(file_path)
 
-        # # Prepare the data table
+        # Prepare the data table
         df = prepare_data_table(df)
 
-        # # Add maximum and minimum values
+        # Add maximum and minimum values ✅
         df = add_max_min(df)
 
-        # # Add moving averages (Total Indicators: 2)
+        # Add moving averages (Total Indicators: 2) ✅
         df = add_moving_averages(df)
 
-        # # Add MACD (Total Indicators: 3)
+        # Add MACD (Total Indicators: 3) ✅
         df = add_macd(df)
 
-        # # Add RSI (Total Indicators: 4)
-        df = add_rsi(df)
-
-        # # Add stochastic oscillator (Total Indicators: 5)
-        df = add_stoch(df)
-
-        # # Add Bollinger Bands (Total Indicators: 6)
-        df = add_bbands(df)
-
-        # # Add Average True Range (Total Indicators: 7)
+        # Add Average True Range (Total Indicators: 7) ✅
         df = add_atr(df)
 
-        # # Add daily return (Total Indicators: 8)
-        df = add_daily_return(df)
+        # Add Pivot Points / Swing High-Low Features (Total Indicators: 8) ✅
+        df = add_pivot_points(df)
 
-        # # Add weekly return (Total Indicators: 9)
-        df = add_weekly_return(df)
+        # Add bearish candlestick patterns (Total Indicators: 9) ✅
+        df = add_bearish_candlestick_patterns(df)
 
-        # # Add a column for label either "buy(0)" or "hold(1) or "sell(2)"
-        df = add_label_column(df, annual_expected_return, holding_period, spread)
+        # Add a column for label either "buy(0)" or "hold(1) or "sell(2)"
+        df = add_label_column(
+            df,
+            annual_expected_return,
+            holding_period,
+            spread,
+            look_ahead_days,
+            expected_return_per_trade,
+        )
+
+        # Add the return since the last buy signal (Total Indicators: 10) ✅
+        df = calculate_return_since_last_buy(df)
+
+        # Add the days since the last buy signal (Total Indicators: 11) ✅
+        df = calculate_days_since_last_buy(df)
 
         # # Chop off the first and last days based on the longest holding period
         longest_holding_period = holding_period[-1]
