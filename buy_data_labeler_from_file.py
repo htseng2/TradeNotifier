@@ -47,6 +47,7 @@ def prepare_data_table(df):
 
 def add_moving_averages(df):
     """Add moving averages to the DataFrame."""
+    df["MA_10"] = df["Close"].rolling(window=10).mean()
     df["MA_50"] = df["Close"].rolling(window=50).mean()
     df["MA_200"] = df["Close"].rolling(window=200).mean()
     return df
@@ -103,12 +104,16 @@ def add_weekly_return(df):
 
 def add_max_min(df):
     """Add maximum and minimum values over 14, 50, and 90 days to the DataFrame."""
-    df["Max_14"] = df["Close"].rolling(window=14).max()
-    df["Min_14"] = df["Close"].rolling(window=14).min()
+    df["Max_10"] = df["Close"].rolling(window=10).max()
+    df["Min_10"] = df["Close"].rolling(window=10).min()
+    df["Max_21"] = df["Close"].rolling(window=21).max()
+    df["Min_21"] = df["Close"].rolling(window=21).min()
     df["Max_50"] = df["Close"].rolling(window=50).max()
     df["Min_50"] = df["Close"].rolling(window=50).min()
-    df["Max_90"] = df["Close"].rolling(window=90).max()
-    df["Min_90"] = df["Close"].rolling(window=90).min()
+    df["Max_100"] = df["Close"].rolling(window=100).max()
+    df["Min_100"] = df["Close"].rolling(window=100).min()
+    df["Max_200"] = df["Close"].rolling(window=200).max()
+    df["Min_200"] = df["Close"].rolling(window=200).min()
     return df
 
 
@@ -178,27 +183,27 @@ def add_buy_sell_column(
     look_ahead_days,
     expected_return_per_trade,
 ):
-    """Add a label column to the DataFrame and prefill with 1."""
+    """Add buy and sell signal columns to the DataFrame."""
     df["buy"] = 0
     df["sell"] = 0
-    # Calculate the future return and update the label
-    for index in range(len(df) - holding_period[1]):
+    last_buy_index = None
+
+    for index in range(len(df) - look_ahead_days):
         current_price = df["Close"].iloc[index]
 
-        # Check each future price within the holding period
-        for future_index in range(index, index + look_ahead_days):
-            # Calculate the threshold (expected return) for the specific number of days, including the spread
+        # Check for buy signal
+        for future_index in range(index + 1, index + look_ahead_days + 1):
             expected_return = 1 + expected_return_per_trade + spread
             threshold = current_price * expected_return
             if df["Close"].iloc[future_index] > threshold:
                 df.at[df.index[index], "buy"] = 1
+                last_buy_index = index
+                break
 
-            # If all the future prices (now + LOOK_AHEAD_DAYS) are below the current price, set the label to 1
-            is_all_below_threshold = all(
-                df["Close"].iloc[future_index] <= current_price
-                for future_index in range(index, index + look_ahead_days)
-            )
-            if is_all_below_threshold:
+        # Check for sell signal
+        if last_buy_index is not None:
+            buy_price = df.at[df.index[last_buy_index], "Close"]
+            if current_price > (buy_price * (1 + expected_return_per_trade + spread)):
                 df.at[df.index[index], "sell"] = 1
 
     return df
@@ -260,17 +265,14 @@ def main():
         # Add moving averages (Total Indicators: 2) ✅
         df = add_moving_averages(df)
 
-        # Add MACD (Total Indicators: 3) ✅
-        df = add_macd(df)
-
-        # Add Average True Range (Total Indicators: 7) ✅
-        df = add_atr(df)
-
         # Add Pivot Points / Swing High-Low Features (Total Indicators: 8) ✅
         df = add_pivot_points(df)
 
-        # Add bearish candlestick patterns (Total Indicators: 9) ✅
-        df = add_bearish_candlestick_patterns(df)
+        # Add RSI (Total Indicators: 10) ✅
+        df = add_rsi(df)
+
+        # Add Bollinger Bands (Total Indicators: 12) ✅
+        df = add_bbands(df)
 
         # Add a column for label either "buy(0)" or "hold(1) or "sell(2)"
         df = add_buy_sell_column(
@@ -283,10 +285,10 @@ def main():
         )
 
         # Add the return since the last buy signal (Total Indicators: 10) ✅
-        df = calculate_return_since_last_buy(df)
+        # df = calculate_return_since_last_buy(df)
 
         # Add the days since the last buy signal (Total Indicators: 11) ✅
-        df = calculate_days_since_last_buy(df)
+        # df = calculate_days_since_last_buy(df)
 
         # # Chop off the first and last days based on the longest holding period
         longest_holding_period = holding_period[-1]

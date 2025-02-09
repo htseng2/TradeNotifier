@@ -1,10 +1,11 @@
 from cProfile import label
-from data_labeler_from_file import (
+from buy_data_labeler_from_file import (
     add_atr,
     add_bbands,
     add_bearish_candlestick_patterns,
+    add_buy_sell_column,
     add_daily_return,
-    add_label_column,
+    # add_label_column,
     add_macd,
     add_pivot_points,
     add_stoch,
@@ -15,6 +16,8 @@ from data_labeler_from_file import (
     calculate_days_since_last_buy,
     calculate_return_since_last_buy,
 )
+from sell_data_labeler_from_file import add_max_min as add_max_min_sell
+from data_labeler_from_file import add_label_column
 from forex_utils import fetch_forex_data, prepare_data_table
 import smtplib
 from email.mime.text import MIMEText
@@ -136,12 +139,23 @@ def main():
 
         # Enhance the DataFrame with additional features
         df = add_max_min(df)
+        df = add_max_min_sell(df)
         df = add_moving_averages(df)
         df = add_macd(df)
         df = add_atr(df)
         df = add_pivot_points(df)
+        df = add_rsi(df)
+        df = add_bbands(df)
         df = add_bearish_candlestick_patterns(df)
-        df = add_label_column(
+        # df = add_label_column(
+        #     df,
+        #     annual_expected_return,
+        #     holding_period,
+        #     spread,
+        #     look_ahead_days,
+        #     expected_return_per_trade,
+        # )
+        df = add_buy_sell_column(
             df,
             annual_expected_return,
             holding_period,
@@ -151,31 +165,85 @@ def main():
         )
         df = calculate_return_since_last_buy(df)
         df = calculate_days_since_last_buy(df)
-        df = df.drop(columns=["1. open", "2. high", "3. low", "label"])
+
+        # Dataframe for buy model
+        df_buy = df.drop(
+            columns=[
+                "1. open",
+                "2. high",
+                "3. low",
+                "buy",
+                "sell",
+                "MACD",
+                "ATR",
+                "Bearish_Candlestick_Patterns",
+                # "label",
+                "Return_Since_Last_Buy",
+                "Days_Since_Last_Buy",
+                "Max_14",
+                "Min_14",
+                "Max_90",
+                "Min_90",
+            ]
+        )
+        df_sell = df.drop(
+            columns=[
+                "1. open",
+                "2. high",
+                "3. low",
+                "buy",
+                "sell",
+                "RSI",
+                "BBands",
+                # "label",
+                "Max_10",
+                "Min_10",
+                "Max_21",
+                "Min_21",
+                "Max_100",
+                "Min_100",
+                "Max_200",
+                "Min_200",
+                "MA_10",
+            ]
+        )
 
         # Printe the head and tail of the DataFrame
-        print(df.head())
-        print(df.tail())
+        print(df_buy.head())
+        print(df_buy.tail())
+        print(df_sell.head())
+        print(df_sell.tail())
 
         # Load the latest trained model from the live_models folder
-        gbm = lgb.Booster(model_file=f"live_models/lightgbm_model_20250209_131215.txt")
+        gbm_buy = lgb.Booster(model_file=f"live_models/lightgbm_model_buy_signal.txt")
+        gbm_sell = lgb.Booster(model_file=f"live_models/lightgbm_model_sell_signal.txt")
         # Load the trained model from the live_models folder depending on the currency pair
         # gbm = lgb.Booster(model_file=f"live_models/lightgbm_model_{from_symbol}.txt")
 
         # Predict the label for the latest date
-        X_latest = df.iloc[-1:]  # Get the latest row
-        y_pred_latest = gbm.predict(X_latest, num_iteration=gbm.best_iteration)
+        X_latest_buy = df_buy.iloc[-1:]  # Get the latest row
+        y_pred_latest_buy = gbm_buy.predict(
+            X_latest_buy, num_iteration=gbm_buy.best_iteration
+        )
+        X_latest_sell = df_sell.iloc[-1:]  # Get the latest row
+        y_pred_latest_sell = gbm_sell.predict(
+            X_latest_sell, num_iteration=gbm_sell.best_iteration
+        )
         # Convert probabilities to class labels
-        y_pred_latest = list(y_pred_latest[0]).index(max(y_pred_latest[0]))
-
+        buy = 1 if y_pred_latest_buy[0] >= 0.5 else 0
+        sell = 1 if y_pred_latest_sell[0] >= 0.5 else 0
         # Coverting the label to a string
-        predicted_label = ""
-        if y_pred_latest == 0:
-            predicted_label = "buy"
-        elif y_pred_latest == 1:
-            predicted_label = "hold"
+        predicted_buy_str = ""
+        if buy == 1:
+            predicted_buy_str = "buy"
         else:
-            predicted_label = "sell"
+            predicted_buy_str = "hold"
+
+        predicted_sell_str = ""
+        if sell == 1:
+            predicted_sell_str = "sell"
+        else:
+            predicted_sell_str = "hold"
 
         # Check the indicator
         # indicator = check_indicator(df)
@@ -184,7 +252,7 @@ def main():
         # Append message for the current pair
         full_message += (
             # f"The current RSI indicator for {from_symbol}/{to_symbol} is: {indicator}\n"
-            f"The predicted label for {from_symbol}/{to_symbol} is: {predicted_label}\n\n"
+            f"{from_symbol}/{to_symbol}: {predicted_buy_str}, {predicted_sell_str}\n\n"
         )
 
     # Send the full notification

@@ -143,6 +143,35 @@ def calculate_return_since_last_buy(df):
     return df
 
 
+def calculate_return_since_last_consegetive_trough_average_greater_than_threshold(
+    df, expected_return_per_trade, spread, holding_period
+):
+    """Calculate the return since the last consecutive trough average greater than threshold and add it to the DataFrame."""
+    last_trough_index = None
+    return_since_last_trough = []
+
+    # look back 3 days and calculate the average of the 3 days
+    # if the average is lower than current price * (1 + expected_return_per_trade + spread), then it is a trough
+
+    for index, row in df.iterrows():
+        if index < 3:
+            return_since_last_trough.append(0)
+        else:
+            average_of_3_days = df["Close"].iloc[index - 3 : index].mean()
+            if average_of_3_days < row["Close"] * (
+                1 + expected_return_per_trade + spread
+            ):
+                return_since_last_trough.append(
+                    (row["Close"] * (1 + expected_return_per_trade + spread))
+                    - average_of_3_days
+                )
+            else:
+                return_since_last_trough.append(0)
+
+    df["Return_Since_Last_Trough"] = return_since_last_trough
+    return df
+
+
 def calculate_days_since_last_buy(df):
     """Calculate the number of days since the last buy signal (label == 0) and add it to the DataFrame."""
     last_buy_index = None
@@ -162,6 +191,10 @@ def calculate_days_since_last_buy(df):
 
     df["Days_Since_Last_Buy"] = days_since_buy
     return df
+
+
+def calculate_days_since_last_trough(df, expected_return_per_trade, spread):
+    """Calculate the number of days since the last trough and add it to the DataFrame."""
 
 
 def add_pivot_points(df):
@@ -242,6 +275,10 @@ def main():
         ("CAD", "TWD"),
         ("DKK", "TWD"),
         ("JPY", "TWD"),
+        # For testing
+        ("INR", "TWD"),
+        ("MXN", "TWD"),
+        ("NOK", "TWD"),
     ]
     # currency_pairs = [("JPY", "TWD")]
     annual_expected_return = 0.20
@@ -286,14 +323,14 @@ def main():
         )
 
         # Add the return since the last buy signal (Total Indicators: 10) ✅
-        df = calculate_return_since_last_buy(df)
+        # df = calculate_return_since_last_buy(df)
 
         # Add the days since the last buy signal (Total Indicators: 11) ✅
-        df = calculate_days_since_last_buy(df)
+        # df = calculate_days_since_last_buy(df)
 
         # # Chop off the first and last days based on the longest holding period
-        longest_holding_period = holding_period[-1]
-        df = df.iloc[longest_holding_period:-longest_holding_period]
+        # longest_holding_period = holding_period[-1]
+        # df = df.iloc[longest_holding_period:-longest_holding_period]
 
         # Save the DataFrame to a CSV file
         save_path = f"labeled_data/labeled_data_{from_symbol}.csv"

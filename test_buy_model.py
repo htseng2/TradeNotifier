@@ -71,11 +71,12 @@ def main():
 
     # Load the trained model from the models folder
     # model_path = f"models/lightgbm_model_20250209_103307.txt"
-    model_path = f"live_models/lightgbm_model_buy_signal.txt"
+    model_path = f"models/lightgbm_model_20250209_185459.txt"
     gbm = load_model(model_path)
 
     # Read the DataFrame from the CSV file
     data_path = f"labeled_data/labeled_data_{currency}.csv"
+    # data_path = f"labeled_data/labeled_data.csv"
     df = load_data(data_path)
 
     # Process data
