@@ -1,0 +1,2 @@
+timestamp,precision_0,recall_0,f1_0,precision_1,recall_1,f1_1,roc_auc,features,num_features,parameters
+2025-02-12 13:30:18,0.9300327332242226,0.9784761084804132,0.9536396056219845,0.87146529562982,0.6647058823529411,0.7541713014460512,0.9547909650300068,Close|MA_10|MA_200|MA_50|Max_10|Max_100|Max_200|Max_21|Max_50|Min_10|Min_100|Min_200|Min_21|Min_50|RSI,15,"{""learning_rate"": 0.09963995777618474, ""max_depth"": 12, ""min_data_in_leaf"": 21, ""min_sum_hessian_in_leaf"": 14, ""num_leaves"": 221}"
