@@ -23,12 +23,13 @@ from pathlib import Path
 # Data Preparation Functions
 # ----------------------------
 def fetch_forex_data(file_path):
-    return pd.read_csv(file_path)
+    # Read CSV with date as index column
+    return pd.read_csv(file_path, index_col=0)
 
 
 def prepare_data_table(df):
-    df["Date"] = pd.to_datetime(df["Date"]).dt.normalize()
-    df.set_index("Date", inplace=True)
+    # Convert existing index to datetime
+    df.index = pd.to_datetime(df.index).normalize()
     df = df.sort_index()
     df["Close"] = df["Close"].astype(float)
     return df[df.index.dayofweek < 5]
@@ -49,6 +50,121 @@ def add_technical_indicators(df):
     gain = delta.where(delta > 0, 0).rolling(14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
     df["RSI"] = 100 - (100 / (1 + (gain / loss)))
+
+    # Stochastic Oscillator (STOCH)
+    low_9 = df["Low"].rolling(9).min()
+    high_9 = df["High"].rolling(9).max()
+    df["STOCH_%K"] = 100 * ((df["Close"] - low_9) / (high_9 - low_9))
+    df["STOCH_%D"] = df["STOCH_%K"].rolling(6).mean()
+
+    # Stochastic RSI
+    rsi = df["RSI"].rolling(14, min_periods=14)
+    df["STOCHRSI_%K"] = (df["RSI"] - rsi.min()) / (rsi.max() - rsi.min()) * 100
+    df["STOCHRSI_%D"] = df["STOCHRSI_%K"].rolling(3).mean()
+
+    # MACD
+    ema12 = df["Close"].ewm(span=12, adjust=False).mean()
+    ema26 = df["Close"].ewm(span=26, adjust=False).mean()
+    df["MACD"] = ema12 - ema26
+    df["MACD_Signal"] = df["MACD"].ewm(span=9, adjust=False).mean()
+    df["MACD_Hist"] = df["MACD"] - df["MACD_Signal"]
+
+    # ADX
+    high_low = df["High"] - df["Low"]
+    high_close = (df["High"] - df["Close"].shift()).abs()
+    low_close = (df["Low"] - df["Close"].shift()).abs()
+    tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+
+    plus_dm = df["High"].diff()
+    minus_dm = -df["Low"].diff()
+    plus_dm[plus_dm < 0] = 0
+    minus_dm[minus_dm < 0] = 0
+
+    plus_di = 100 * (plus_dm.ewm(alpha=1 / 14).mean() / tr.ewm(alpha=1 / 14).mean())
+    minus_di = 100 * (minus_dm.ewm(alpha=1 / 14).mean() / tr.ewm(alpha=1 / 14).mean())
+    dx = 100 * (abs(plus_di - minus_di) / (plus_di + minus_di))
+    df["ADX"] = dx.ewm(alpha=1 / 14).mean()
+
+    # Williams %R
+    high_14 = df["High"].rolling(14).max()
+    low_14 = df["Low"].rolling(14).min()
+    df["Williams_%R"] = (high_14 - df["Close"]) / (high_14 - low_14) * -100
+
+    # CCI
+    tp = (df["High"] + df["Low"] + df["Close"]) / 3
+    df["CCI"] = (tp - tp.rolling(14).mean()) / (0.015 * tp.rolling(14).std())
+
+    # ATR
+    df["ATR"] = tr.rolling(14).mean()
+
+    # Highs/Lows
+    df["High_14"] = df["High"].rolling(14).max()
+    df["Low_14"] = df["Low"].rolling(14).min()
+
+    # Ultimate Oscillator
+    bp = df["Close"] - pd.concat([df["Low"], df["Close"].shift()], axis=1).min(axis=1)
+    tr = pd.concat([df["High"], df["Close"].shift()], axis=1).max(axis=1) - pd.concat(
+        [df["Low"], df["Close"].shift()], axis=1
+    ).min(axis=1)
+
+    avg7 = bp.rolling(7).sum() / tr.rolling(7).sum()
+    avg14 = bp.rolling(14).sum() / tr.rolling(14).sum()
+    avg28 = bp.rolling(28).sum() / tr.rolling(28).sum()
+    df["Ultimate_Osc"] = 100 * (4 * avg7 + 2 * avg14 + avg28) / (4 + 2 + 1)
+
+    # ROC
+    df["ROC"] = df["Close"].pct_change(14) * 100
+
+    # Bull/Bear Power
+    ema13 = df["Close"].ewm(span=13, adjust=False).mean()
+    df["Bull_Power"] = df["High"] - ema13
+    df["Bear_Power"] = df["Low"] - ema13
+
+    # Pivot Points (Daily)
+    prev_day = df.shift(1)
+    df["Pivot"] = (prev_day["High"] + prev_day["Low"] + prev_day["Close"]) / 3
+    df["S1"] = (2 * df["Pivot"]) - prev_day["High"]
+    df["R1"] = (2 * df["Pivot"]) - prev_day["Low"]
+    df["S2"] = df["Pivot"] - (prev_day["High"] - prev_day["Low"])
+    df["R2"] = df["Pivot"] + (prev_day["High"] - prev_day["Low"])
+    df["S3"] = prev_day["Low"] - 2 * (prev_day["High"] - df["Pivot"])
+    df["R3"] = prev_day["High"] + 2 * (df["Pivot"] - prev_day["Low"])
+
+    # Fibonacci Pivot Points
+    pp = (prev_day["High"] + prev_day["Low"] + prev_day["Close"]) / 3
+    df["Fib_S1"] = pp - (0.382 * (prev_day["High"] - prev_day["Low"]))
+    df["Fib_S2"] = pp - (0.618 * (prev_day["High"] - prev_day["Low"]))
+    df["Fib_R1"] = pp + (0.382 * (prev_day["High"] - prev_day["Low"]))
+    df["Fib_R2"] = pp + (0.618 * (prev_day["High"] - prev_day["Low"]))
+
+    # Camarilla Pivot Points
+    df["Camarilla_R3"] = (
+        prev_day["Close"] + (prev_day["High"] - prev_day["Low"]) * 1.1 / 4
+    )
+    df["Camarilla_R2"] = (
+        prev_day["Close"] + (prev_day["High"] - prev_day["Low"]) * 1.1 / 6
+    )
+    df["Camarilla_R1"] = (
+        prev_day["Close"] + (prev_day["High"] - prev_day["Low"]) * 1.1 / 12
+    )
+    df["Camarilla_S1"] = (
+        prev_day["Close"] - (prev_day["High"] - prev_day["Low"]) * 1.1 / 12
+    )
+    df["Camarilla_S2"] = (
+        prev_day["Close"] - (prev_day["High"] - prev_day["Low"]) * 1.1 / 6
+    )
+    df["Camarilla_S3"] = (
+        prev_day["Close"] - (prev_day["High"] - prev_day["Low"]) * 1.1 / 4
+    )
+
+    # Added feature
+    df["MA_10_50_ratio"] = df["MA_10"] / df["MA_50"]
+    df["MA_50_200_ratio"] = df["MA_50"] / df["MA_200"]
+
+    # Derived features like using (Min_200, Max_200), (Min_100, Max_100), (Min_50, Max_50)
+    df["Min_200_Max_200_ratio"] = df["Min_200"] / df["Max_200"]
+    df["Min_100_Max_100_ratio"] = df["Min_100"] / df["Max_100"]
+    df["Min_50_Max_50_ratio"] = df["Min_50"] / df["Max_50"]
 
     return df
 
@@ -71,7 +187,26 @@ def generate_labels(df, lookahead=21, expected_return=0.005, spread=0.02):
 # Model Training Functions
 # ----------------------------
 def prepare_features(df):
-    return df.drop(columns=["buy"]), df["buy"]
+    # Explicit feature selection
+    selected_features = [
+        "ATR",
+        "MA_50_200_ratio",
+        "Min_200",
+        "MA_200",
+        "Max_200",
+        "Max_100",
+        "ADX",
+        "Min_100",
+        "MA_10_50_ratio",
+        "Min_50",
+        "Ultimate_Osc",
+        # "MACD",
+        # "MA_50",
+        # "Min_50_Max_50_ratio",
+        # "Min_100_Max_100_ratio",
+        # "Min_200_Max_200_ratio",
+    ]
+    return df[selected_features], df["buy"]
 
 
 def optimize_hyperparameters(X_train, y_train, X_valid, y_valid):
@@ -178,7 +313,6 @@ def main():
     # Data Preparation
     currency_pairs = [
         ("USD", "TWD"),
-        ("CNY", "TWD"),
         ("EUR", "TWD"),
         ("SGD", "TWD"),
         ("GBP", "TWD"),
@@ -187,6 +321,9 @@ def main():
         ("CAD", "TWD"),
         ("JPY", "TWD"),
         ("HKD", "TWD"),
+        ("NZD", "TWD"),
+        # Not enough data or unpredicatable with current set of features
+        # ("CNY", "TWD"),
     ]
     dfs = []
 
@@ -283,6 +420,56 @@ def main():
     # Save Model
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     model.booster_.save_model(f"models/buy_model_{timestamp}.txt")
+
+    # Test on first currency pair
+    first_pair = currency_pairs[0]
+    test_df = fetch_forex_data(
+        f"Alpha_Vantage_Data/{first_pair[0]}_{first_pair[1]}.csv"
+    )
+    test_df = prepare_data_table(test_df)
+    test_df = add_technical_indicators(test_df)
+    test_df = generate_labels(test_df)
+
+    # Prepare features and filter
+    X_test, y_test = prepare_features(test_df)
+    X_test = X_test.reindex(columns=X.columns, fill_value=0)  # Align columns
+
+    # Predict
+    test_proba = model.predict_proba(X_test)[:, 1]
+    test_pred = (test_proba >= 0.5).astype(int)
+
+    # Plot results
+    plt.figure(figsize=(15, 7))
+    plt.plot(test_df.index, test_df["Close"], label="Price", alpha=0.5)
+
+    # True buy signals
+    true_buys = test_df[test_df["buy"] == 1]
+    plt.scatter(
+        true_buys.index,
+        true_buys["Close"],
+        color="green",
+        marker="^",
+        s=100,
+        label="True Buy Signals",
+    )
+
+    # Predicted buy signals
+    predicted_buys = test_df.loc[X_test.index[test_pred == 1]]
+    plt.scatter(
+        predicted_buys.index,
+        predicted_buys["Close"],
+        color="red",
+        marker="v",
+        s=100,
+        label="Predicted Buy Signals",
+    )
+
+    plt.title(f"{first_pair[0]}/{first_pair[1]} Buy Signal Comparison")
+    plt.ylabel("Price")
+    plt.legend()
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.show()
 
 
 if __name__ == "__main__":
