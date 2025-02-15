@@ -27,6 +27,18 @@ def fetch_forex_data(file_path):
     return pd.read_csv(file_path, index_col=0)
 
 
+def fetch_stock_data(file_path):
+    """Read stock CSV with correct column names"""
+    df = pd.read_csv(
+        file_path,
+        header=0,  # Use the first row as header
+        names=["date", "Open", "High", "Low", "Close", "Volume"],  # Map columns
+        parse_dates=["date"],
+        index_col="date",
+    )
+    return df
+
+
 def prepare_data_table(df):
     # Convert existing index to datetime
     df.index = pd.to_datetime(df.index).normalize()
@@ -170,8 +182,14 @@ def add_technical_indicators(df):
 
 
 def generate_labels(
-    df, lookahead=21, expected_return=0.005, spread=0.02, trim_data=True
+    df, lookahead=21, expected_return=0.075, spread=0.02, trim_data=True
 ):
+    """Generate trading labels while handling lookahead bias
+
+    Args:
+        trim_data (bool): If True, removes incomplete windows at start/end.
+            Set to False to keep all dates (for testing/analysis)
+    """
     df["buy"] = 0
     threshold = 1 + expected_return + spread
 
@@ -362,24 +380,17 @@ def save_results_report(results_path, metrics, features, params):
 # ----------------------------
 def main():
     # Data Preparation
-    currency_pairs = [
-        # ("USD", "TWD"),
-        # ("EUR", "TWD"),
-        # ("SGD", "TWD"),
-        # ("GBP", "TWD"),
-        # ("AUD", "TWD"),
-        # ("CHF", "TWD"),
-        # ("CAD", "TWD"),
-        # ("JPY", "TWD"),
-        # ("HKD", "TWD"),
-        ("NZD", "TWD"),
-        # Not enough data or unpredicatable with current set of features
-        # ("CNY", "TWD"),
-    ]
-    dfs = []
+    stock_symbols = [
+        # "GLD",
+        "AAPL",
+        # "IAU",
+        # "NVDA",
+    ]  # Single symbol instead of currency pairs
 
-    for pair in currency_pairs:
-        df = fetch_forex_data(f"Alpha_Vantage_Data/{pair[0]}_{pair[1]}.csv")
+    dfs = []
+    for symbol in stock_symbols:
+        # Update path to match stock data format
+        df = fetch_stock_data(f"Alpha_Vantage_Data/{symbol}_daily_stock_data.csv")
         df = prepare_data_table(df)
         df = add_technical_indicators(df)
         df = generate_labels(df)
@@ -485,21 +496,19 @@ def main():
         "val_log_loss": val_log_loss,
         "roc_auc_gap": roc_gap,
         "model_filename": model_filename,
-        "currency_pair(s)": ",".join({pair[0] for pair in currency_pairs}),
+        "symbol": symbol,
     }
 
     save_results_report(
-        results_path="lightGBM_model_history.csv",
+        results_path="lightGBM_stock_model_history.csv",
         metrics=metrics,
         features=list(X.columns),
         params=best_params,
     )
 
     # Test on first currency pair
-    first_pair = currency_pairs[0]
-    test_df = fetch_forex_data(
-        f"Alpha_Vantage_Data/{first_pair[0]}_{first_pair[1]}.csv"
-    )
+    first_pair = stock_symbols[0]
+    test_df = fetch_stock_data(f"Alpha_Vantage_Data/{first_pair}_daily_stock_data.csv")
     test_df = prepare_data_table(test_df)
     test_df = add_technical_indicators(test_df)
     test_df = generate_labels(test_df, trim_data=False)
@@ -538,7 +547,7 @@ def main():
         label="Predicted Buy Signals",
     )
 
-    plt.title(f"{first_pair[0]}/{first_pair[1]} Buy Signal Comparison")
+    plt.title(f"{first_pair} Buy Signal Comparison")
     plt.ylabel("Price")
     plt.legend()
     plt.xticks(rotation=45)

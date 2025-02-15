@@ -221,6 +221,10 @@ def main():
         y_pred_latest_sell = gbm_sell.predict(
             X_latest_sell, num_iteration=gbm_sell.best_iteration
         )
+        # Print the most recent date in the dataset
+        print(
+            f"Latest analyzed data point for {from_symbol}/{to_symbol}: {df.index[-1].strftime('%Y-%m-%d')}"
+        )
         # Convert probabilities to class labels
         buy = 1 if y_pred_latest_buy[0] >= 0.5 else 0
         sell = 1 if y_pred_latest_sell[0] >= 0.5 else 0
