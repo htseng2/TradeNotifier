@@ -187,26 +187,75 @@ def generate_labels(df, lookahead=21, expected_return=0.005, spread=0.02):
 # Model Training Functions
 # ----------------------------
 def prepare_features(df):
-    # Explicit feature selection
+    # Explicit feature selection (validated against add_technical_indicators)
     selected_features = [
+        # Core technical indicators
         "ATR",
-        "MA_50_200_ratio",
-        "Min_200",
-        "MA_200",
-        "Max_200",
-        "Max_100",
         "ADX",
-        "Min_100",
-        "MA_10_50_ratio",
-        "Min_50",
+        "RSI",
+        "STOCH_%K",
+        "STOCH_%D",
+        "STOCHRSI_%K",
+        "STOCHRSI_%D",
+        "MACD",
+        "MACD_Signal",
+        "MACD_Hist",
+        "Williams_%R",
+        "CCI",
         "Ultimate_Osc",
-        # "MACD",
-        # "MA_50",
-        # "Min_50_Max_50_ratio",
-        # "Min_100_Max_100_ratio",
-        # "Min_200_Max_200_ratio",
+        "ROC",
+        # Moving averages
+        "MA_10",
+        "MA_50",
+        "MA_200",
+        # Price extremes (all windows)
+        "Max_10",
+        "Min_10",
+        "Max_21",
+        "Min_21",
+        "Max_50",
+        "Min_50",
+        "Max_100",
+        "Min_100",
+        "Max_200",
+        "Min_200",
+        # Ratios
+        "MA_10_50_ratio",
+        "MA_50_200_ratio",
+        "Min_50_Max_50_ratio",
+        "Min_100_Max_100_ratio",
+        "Min_200_Max_200_ratio",
+        # Pivot points
+        "Pivot",
+        "S1",
+        "R1",
+        "S2",
+        "R2",
+        "S3",
+        "R3",
+        # Fibonacci levels
+        "Fib_R1",
+        "Fib_S1",
+        "Fib_R2",
+        "Fib_S2",
+        # Camarilla levels
+        "Camarilla_R1",
+        "Camarilla_S1",
+        "Camarilla_R2",
+        "Camarilla_S2",
+        "Camarilla_R3",
+        "Camarilla_S3",
+        # Power indicators
+        "Bull_Power",
+        "Bear_Power",
+        # Additional features
+        "High_14",
+        "Low_14",
     ]
-    return df[selected_features], df["buy"]
+
+    # Filter to only existing columns
+    valid_features = [f for f in selected_features if f in df.columns]
+    return df[valid_features], df["buy"]
 
 
 def optimize_hyperparameters(X_train, y_train, X_valid, y_valid):
@@ -312,16 +361,16 @@ def save_results_report(results_path, metrics, features, params):
 def main():
     # Data Preparation
     currency_pairs = [
-        ("USD", "TWD"),
-        ("EUR", "TWD"),
+        # ("USD", "TWD"),
+        # ("EUR", "TWD"),
         ("SGD", "TWD"),
-        ("GBP", "TWD"),
-        ("AUD", "TWD"),
-        ("CHF", "TWD"),
-        ("CAD", "TWD"),
-        ("JPY", "TWD"),
-        ("HKD", "TWD"),
-        ("NZD", "TWD"),
+        # ("GBP", "TWD"),
+        # ("AUD", "TWD"),
+        # ("CHF", "TWD"),
+        # ("CAD", "TWD"),
+        # ("JPY", "TWD"),
+        # ("HKD", "TWD"),
+        # ("NZD", "TWD"),
         # Not enough data or unpredicatable with current set of features
         # ("CNY", "TWD"),
     ]
@@ -365,14 +414,31 @@ def main():
     print("\nConfusion Matrix (Validation):")
     print(confusion_matrix(y_valid, val_pred))
 
+    # Enhanced evaluation metrics
+    print("\n=== Bias-Variance Indicators ===")
+    # Calculate log loss for both sets
+    train_log_loss = log_loss(y_train, train_proba)
+    val_log_loss = log_loss(y_valid, val_proba)
+    print(
+        f"Train Log Loss: {train_log_loss:.4f} | Validation Log Loss: {val_log_loss:.4f}"
+    )
+
+    # Calculate ROC AUC gap
+    roc_gap = roc_auc_score(y_train, train_proba) - roc_auc_score(y_valid, val_proba)
+    print(f"ROC AUC Gap (Train - Val): {roc_gap:.2%}")
+
+    # Add training set confusion matrix
+    print("\nConfusion Matrix (Training):")
+    print(confusion_matrix(y_train, train_pred))
+
     # Feature Importance Analysis
     print("\n=== Feature Importance ===")
-    plt.figure(figsize=(10, 6))
-    lgb.plot_importance(
+    ax = lgb.plot_importance(
         model.booster_,
         max_num_features=20,
         importance_type="gain",
         title="Feature Importance (Gain)",
+        figsize=(10, 6),
     )
     plt.show()
 
@@ -387,7 +453,12 @@ def main():
     print("\nTop 20 Features by Gain Importance:")
     print(importance.head(20).to_string(index=False))
 
-    # Save results to history
+    # Save Model first to get filename
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    model_filename = f"models/buy_model_{timestamp}.txt"
+    model.booster_.save_model(model_filename)
+
+    # Save results to history (now includes model filename)
     metrics = {
         "precision_0": float(
             classification_report(y_valid, val_pred, output_dict=True)["0"]["precision"]
@@ -408,6 +479,11 @@ def main():
             classification_report(y_valid, val_pred, output_dict=True)["1"]["f1-score"]
         ),
         "roc_auc": roc_auc_score(y_valid, val_proba),
+        "train_log_loss": train_log_loss,
+        "val_log_loss": val_log_loss,
+        "roc_auc_gap": roc_gap,
+        "model_filename": model_filename,
+        "currency_pair(s)": ",".join({pair[0] for pair in currency_pairs}),
     }
 
     save_results_report(
@@ -416,10 +492,6 @@ def main():
         features=list(X.columns),
         params=best_params,
     )
-
-    # Save Model
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    model.booster_.save_model(f"models/buy_model_{timestamp}.txt")
 
     # Test on first currency pair
     first_pair = currency_pairs[0]
