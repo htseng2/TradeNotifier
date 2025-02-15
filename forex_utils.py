@@ -30,21 +30,25 @@ def fetch_forex_data(from_symbol, to_symbol):
 
 
 def prepare_data_table(data):
-    """Convert data into a DataFrame and remove weekends."""
+    """Convert API response to cleaned DataFrame"""
     daily_data = data.get("Time Series FX (Daily)", {})
     df = pd.DataFrame.from_dict(daily_data, orient="index")
     df.index = pd.to_datetime(df.index)
     df = df.sort_index()
 
-    # Convert closing prices to float
-    df["4. close"] = df["4. close"].astype(float)
-    df.rename(columns={"4. close": "Close"}, inplace=True)
+    # Convert and rename columns
+    df = df.astype(float)
+    df = df.rename(
+        columns={
+            "1. open": "Open",
+            "2. high": "High",
+            "3. low": "Low",
+            "4. close": "Close",
+        }
+    )[["Open", "High", "Low", "Close"]]
 
-    # Remove weekends
-    df = df[df.index.dayofweek < 5]  # 0=Monday, 4=Friday
-
-    # Preview head and tail
     print(df.head())
     print(df.tail())
 
-    return df
+    # Filter out weekends
+    return df[df.index.dayofweek < 5]

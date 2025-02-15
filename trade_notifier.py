@@ -16,6 +16,7 @@ from buy_data_labeler_from_file import (
     calculate_days_since_last_buy,
     calculate_return_since_last_buy,
 )
+from lightGBM_Alpha_buy_model_training import add_technical_indicators
 from sell_data_labeler_from_file import add_max_min as add_max_min_sell
 from data_labeler_from_file import add_label_column
 from forex_utils import fetch_forex_data, prepare_data_table
@@ -26,6 +27,7 @@ import os
 from dotenv import load_dotenv
 import requests
 import lightgbm as lgb
+import pandas as pd
 
 # Load environment variables from .env file
 load_dotenv()
@@ -107,19 +109,18 @@ def main():
     # Alpha Vantage API only supports up to 10 requests per minute, and 25 requests per day
     currency_pairs = [
         ("USD", "TWD"),
-        ("CNY", "TWD"),
         ("EUR", "TWD"),
-        ("NZD", "TWD"),
         ("SGD", "TWD"),
         ("GBP", "TWD"),
         ("AUD", "TWD"),
         ("CHF", "TWD"),
         ("CAD", "TWD"),
         ("JPY", "TWD"),
-        # Less financially sound and less liquid currencies
-        # ("HKD", "TWD"),
-        # ("DKK", "TWD"),
+        ("HKD", "TWD"),
+        ("NZD", "TWD"),
     ]
+    # Load model history and find best model for this currency pair
+    model_history = pd.read_csv("lightGBM_model_history.csv")
 
     # Initialize an empty message
     full_message = ""
@@ -155,6 +156,7 @@ def main():
         #     look_ahead_days,
         #     expected_return_per_trade,
         # )
+        df = add_technical_indicators(df)
         df = add_buy_sell_column(
             df,
             annual_expected_return,
@@ -166,59 +168,49 @@ def main():
         df = calculate_return_since_last_buy(df)
         df = calculate_days_since_last_buy(df)
 
-        # Dataframe for buy model
-        df_buy = df.drop(
-            columns=[
-                "1. open",
-                "2. high",
-                "3. low",
-                "buy",
-                "sell",
-                "MACD",
-                "ATR",
-                "Bearish_Candlestick_Patterns",
-                # "label",
-                "Return_Since_Last_Buy",
-                "Days_Since_Last_Buy",
-                "Max_14",
-                "Min_14",
-                "Max_90",
-                "Min_90",
-            ]
-        )
-        df_sell = df.drop(
-            columns=[
-                "1. open",
-                "2. high",
-                "3. low",
-                "buy",
-                "sell",
-                "RSI",
-                "BBands",
-                # "label",
-                "Max_10",
-                "Min_10",
-                "Max_21",
-                "Min_21",
-                "Max_100",
-                "Min_100",
-                "Max_200",
-                "Min_200",
-                "MA_10",
-            ]
-        )
+        # Filter models for current currency pair and sort by f1_1 score
+        pair_models = model_history[
+            (model_history["currency_pair(s)"] == from_symbol)
+            & (model_history["model_filename"].notnull())
+        ].sort_values("f1_1", ascending=False)
+
+        if not pair_models.empty:
+            best_model_path = pair_models.iloc[0]["model_filename"]
+            gbm_buy = lgb.Booster(model_file=best_model_path)
+            print(f"Loaded best model for {from_symbol}: {best_model_path}")
+        else:
+            # Fallback to default model if no history found
+            gbm_buy = lgb.Booster(
+                model_file=f"live_models/lightgbm_model_buy_signal.txt"
+            )
+            print(f"Using default model for {from_symbol}")
+
+        # Select features using the model's expected feature names
+        required_features = [col for col in gbm_buy.feature_name() if col in df.columns]
+        missing_features = set(gbm_buy.feature_name()) - set(df.columns)
+
+        if missing_features:
+            print(f"Warning: Missing features {missing_features} in input data")
+
+        df_buy = df[required_features]
+
+        gbm_sell = lgb.Booster(model_file=f"live_models/lightgbm_model_sell_signal.txt")
+        # Select features for sell model
+        sell_required_features = [
+            col for col in gbm_sell.feature_name() if col in df.columns
+        ]
+        sell_missing = set(gbm_sell.feature_name()) - set(df.columns)
+
+        if sell_missing:
+            print(f"Sell model missing features: {sell_missing}")
+
+        df_sell = df[sell_required_features]
 
         # Printe the head and tail of the DataFrame
         print(df_buy.head())
         print(df_buy.tail())
         print(df_sell.head())
         print(df_sell.tail())
-
-        # Load the latest trained model from the live_models folder
-        gbm_buy = lgb.Booster(model_file=f"live_models/lightgbm_model_buy_signal.txt")
-        gbm_sell = lgb.Booster(model_file=f"live_models/lightgbm_model_sell_signal.txt")
-        # Load the trained model from the live_models folder depending on the currency pair
-        # gbm = lgb.Booster(model_file=f"live_models/lightgbm_model_{from_symbol}.txt")
 
         # Predict the label for the latest date
         X_latest_buy = df_buy.iloc[-1:]  # Get the latest row
