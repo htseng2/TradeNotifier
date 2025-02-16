@@ -17,6 +17,7 @@ import seaborn as sns
 import csv
 import json
 from pathlib import Path
+from sklearn.feature_selection import RFE
 
 spread_table = {
     ("USD", "TWD"): 0.003,
@@ -440,17 +441,17 @@ def main():
     # Data Preparation
     currency_pairs = [
         ("USD", "TWD"),
-        # ("EUR", "TWD"),
-        # ("GBP", "TWD"),
-        # ("AUD", "TWD"),
-        # ("CHF", "TWD"),
-        # ("NZD", "TWD"),
-        # ("JPY", "TWD"),  # Not for investment, but track for fun
+        ("EUR", "TWD"),
+        ("GBP", "TWD"),
+        ("AUD", "TWD"),
+        ("CHF", "TWD"),
+        ("NZD", "TWD"),
+        ("JPY", "TWD"),  # Not for investment, but track for fun
         # Not for investment
-        # ("SGD", "TWD"),
-        # ("CAD", "TWD"),
-        # ("CNY", "TWD"),
-        # ("HKD", "TWD"),
+        ("SGD", "TWD"),
+        ("CAD", "TWD"),
+        ("CNY", "TWD"),
+        ("HKD", "TWD"),
     ]
     dfs = []
 
@@ -481,21 +482,36 @@ def main():
 
     # Model Training
     X, y = prepare_features(full_df)
-    X_train, X_valid, y_train, y_valid = train_test_split(
-        X, y, test_size=0.2, random_state=42
+
+    # Time-based split (instead of random split)
+    split_idx = int(len(X) * 0.8)
+    X_train, X_valid = X.iloc[:split_idx], X.iloc[split_idx:]
+    y_train, y_valid = y.iloc[:split_idx], y.iloc[split_idx:]
+
+    # Modified RFE section to keep feature names
+    selector = RFE(estimator=lgb.LGBMClassifier(), n_features_to_select=20)
+    selector.fit(X_train, y_train)
+
+    # Get selected feature names
+    selected_features = X_train.columns[selector.support_]
+    X_train_selected = X_train[selected_features]
+    X_valid_selected = X_valid[selected_features]
+
+    best_params = optimize_hyperparameters(
+        X_train_selected, y_train, X_valid_selected, y_valid
+    )
+    model = train_model(
+        X_train_selected, y_train, X_valid_selected, y_valid, best_params
     )
 
-    best_params = optimize_hyperparameters(X_train, y_train, X_valid, y_valid)
-    model = train_model(X_train, y_train, X_valid, y_valid, best_params)
-
     # Learning Curve Analysis
-    plot_learning_curve(model, "Learning Curve (ROC AUC)", X_train, y_train)
+    plot_learning_curve(model, "Learning Curve (ROC AUC)", X_train_selected, y_train)
 
     # Evaluation
-    train_pred = model.predict(X_train)
-    train_proba = model.predict_proba(X_train)[:, 1]
-    val_pred = model.predict(X_valid)
-    val_proba = model.predict_proba(X_valid)[:, 1]
+    train_pred = model.predict(X_train_selected)
+    train_proba = model.predict_proba(X_train_selected)[:, 1]
+    val_pred = model.predict(X_valid_selected)
+    val_proba = model.predict_proba(X_valid_selected)[:, 1]
 
     print("\n=== Training Set Performance ===")
     print(classification_report(y_train, train_pred))
@@ -539,7 +555,7 @@ def main():
     # Get and display top features
     importance = pd.DataFrame(
         {
-            "Feature": X.columns,
+            "Feature": selected_features,  # Use selected features instead of X.columns
             "Importance": model.booster_.feature_importance(importance_type="gain"),
         }
     ).sort_values(by="Importance", ascending=False)
@@ -583,7 +599,7 @@ def main():
     save_results_report(
         results_path="lightGBM_model_history.csv",
         metrics=metrics,
-        features=list(X.columns),
+        features=list(selected_features),
         params=best_params,
     )
 
@@ -618,7 +634,7 @@ def main():
 
     # Prepare features and filter
     X_test, y_test = prepare_features(test_df)
-    X_test = X_test.reindex(columns=X.columns, fill_value=0)  # Align columns
+    X_test = X_test[selected_features]  # Instead of reindex()
 
     # Predict
     test_proba = model.predict_proba(X_test)[:, 1]
