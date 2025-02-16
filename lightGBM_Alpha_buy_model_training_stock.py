@@ -182,7 +182,7 @@ def add_technical_indicators(df):
 
 
 def generate_labels(
-    df, lookahead=21, expected_return=0.075, spread=0.02, trim_data=True
+    df, lookahead=21, expected_return=0.075, spread=0.005, trim_data=True
 ):
     """Generate trading labels while handling lookahead bias
 
@@ -408,7 +408,7 @@ def main():
     dfs = []
     for symbol in stock_symbols:
         # Update path to match stock data format
-        df = fetch_stock_data(f"Alpha_Vantage_Data/{symbol}_daily_stock_data.csv")
+        df = fetch_stock_data(f"Alpha_Vantage_Stock/{symbol}_daily_stock_data.csv")
         df = prepare_data_table(df)
         df = add_technical_indicators(df)
         df = generate_labels(df)
@@ -423,6 +423,7 @@ def main():
     )
 
     best_params = optimize_hyperparameters(X_train, y_train, X_valid, y_valid)
+    # best_features
     model = train_model(X_train, y_train, X_valid, y_valid, best_params)
 
     # Learning Curve Analysis
@@ -525,8 +526,10 @@ def main():
     )
 
     # Test on first currency pair
-    first_pair = stock_symbols[0]
-    test_df = fetch_stock_data(f"Alpha_Vantage_Data/{first_pair}_daily_stock_data.csv")
+    first_symbol = stock_symbols[0]
+    test_df = fetch_stock_data(
+        f"Alpha_Vantage_Stock/{first_symbol}_daily_stock_data.csv"
+    )
     test_df = prepare_data_table(test_df)
     test_df = add_technical_indicators(test_df)
     test_df = generate_labels(test_df, trim_data=False)
@@ -565,7 +568,7 @@ def main():
         label="Predicted Buy Signals",
     )
 
-    plt.title(f"{first_pair} Buy Signal Comparison")
+    plt.title(f"{first_symbol} Buy Signal Comparison")
     plt.ylabel("Price")
     plt.legend()
     plt.xticks(rotation=45)
