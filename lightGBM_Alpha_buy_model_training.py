@@ -37,11 +37,11 @@ def prepare_data_table(df):
 
 def add_technical_indicators(df):
     # Moving Averages
-    for window in [10, 50, 200]:
+    for window in [5, 10, 20, 50, 100, 200]:
         df[f"MA_{window}"] = df["Close"].rolling(window).mean()
 
     # Price Extremes
-    for window in [10, 21, 50, 100, 200]:
+    for window in [5, 10, 20, 21, 50, 100, 200]:
         df[f"Max_{window}"] = df["Close"].rolling(window).max()
         df[f"Min_{window}"] = df["Close"].rolling(window).min()
 
@@ -191,6 +191,11 @@ def generate_labels(
 def prepare_features(df):
     # Explicit feature selection (validated against add_technical_indicators)
     selected_features = [
+        # Price data
+        "Close",
+        "Open",
+        "High",
+        "Low",
         # Core technical indicators
         "ATR",
         "ADX",
@@ -207,12 +212,19 @@ def prepare_features(df):
         "Ultimate_Osc",
         "ROC",
         # Moving averages
+        "MA_5",
         "MA_10",
+        "MA_20",
         "MA_50",
+        "MA_100",
         "MA_200",
         # Price extremes (all windows)
+        "Max_5",
+        "Min_5",
         "Max_10",
         "Min_10",
+        "Max_20",
+        "Min_20",
         "Max_21",
         "Min_21",
         "Max_50",
@@ -368,11 +380,11 @@ def main():
         # ("SGD", "TWD"),
         # ("GBP", "TWD"),
         # ("AUD", "TWD"),
-        # ("CHF", "TWD"),
+        ("CHF", "TWD"),
         # ("CAD", "TWD"),
         # ("JPY", "TWD"),
         # ("HKD", "TWD"),
-        ("NZD", "TWD"),
+        # ("NZD", "TWD"),
         # Not enough data or unpredicatable with current set of features
         # ("CNY", "TWD"),
     ]
