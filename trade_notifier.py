@@ -219,37 +219,52 @@ def main():
 
         df_buy = df[required_features]
 
+        # Add the buy signal to the df_buy DataFrame
+        df_buy["buy"] = (
+            gbm_buy.predict(
+                df_buy[required_features], num_iteration=gbm_buy.best_iteration
+            )
+            .round()
+            .astype(int)
+        )
+
+        # Predict the label for the latest date
+        y_pred_latest_buy = df_buy["buy"].iloc[-1]  # Now using stored prediction
+
         # Printe the head and tail of the DataFrame
         print(df_buy.head())
         print(df_buy.tail())
         print(df.head())
         print(df.tail())
 
-        # Predict the label for the latest date
-        X_latest_buy = df_buy.iloc[-1:]  # Get the latest row
-        y_pred_latest_buy = gbm_buy.predict(
-            X_latest_buy, num_iteration=gbm_buy.best_iteration
-        )
-        # Print the most recent date in the dataset
-        print(
-            f"Latest analyzed data point for {from_symbol}/{to_symbol}: {df.index[-1].strftime('%Y-%m-%d')}"
-        )
-        # Convert probabilities to class labels
-        buy = 1 if y_pred_latest_buy[0] >= 0.5 else 0
         # Coverting the label to a string
         predicted_buy_str = ""
-        if buy == 1:
+        if y_pred_latest_buy == 1:
             predicted_buy_str = "buy"
         else:
             predicted_buy_str = "hold"
 
-        predicted_sell_str = "sell" if df.iloc[-1]["sell"] == 1 else "hold"
+        # Sell signals should be based on the historical buy signal
+        df_buy["sell"] = 0
+        look_ahead_days = 21
+        for index in range(len(df_buy)):
+            if index >= look_ahead_days:
+                for past_index in range(index - look_ahead_days, index):
+                    expected_return = 1 + gross_expected_return
+                    threshold = df["Close"].iloc[past_index] * expected_return
+                    if df_buy["buy"].iloc[past_index] == 1:
+                        if df["Close"].iloc[index] > threshold:
+                            df_buy.at[df_buy.index[index], "sell"] = 1
+
+        # Coverting the label to a string
+        predicted_sell_str = ""
+        if df_buy["sell"].iloc[-1] == 1:
+            predicted_sell_str = "sell"
+        else:
+            predicted_sell_str = "hold"
 
         # Append message for the current pair
-        full_message += (
-            # f"The current RSI indicator for {from_symbol}/{to_symbol} is: {indicator}\n"
-            f"{from_symbol}/{to_symbol}: {predicted_buy_str}, {predicted_sell_str}\n\n"
-        )
+        full_message += f"{from_symbol}/{to_symbol}: {predicted_buy_str}, {predicted_sell_str} ({gross_expected_return*100:.1f}%)\n\n"
 
     # Send the full notification
     send_notification(full_message)
