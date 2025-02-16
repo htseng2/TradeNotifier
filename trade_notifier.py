@@ -3,7 +3,6 @@ from buy_data_labeler_from_file import (
     add_atr,
     add_bbands,
     add_bearish_candlestick_patterns,
-    add_buy_sell_column,
     add_daily_return,
     # add_label_column,
     add_macd,
@@ -16,7 +15,11 @@ from buy_data_labeler_from_file import (
     calculate_days_since_last_buy,
     calculate_return_since_last_buy,
 )
-from lightGBM_Alpha_buy_model_training import add_technical_indicators
+from lightGBM_Alpha_buy_model_training import (
+    add_technical_indicators,
+    find_gross_expected_return,
+    fetch_forex_data as fetch_forex_data_for_model_training,
+)
 from sell_data_labeler_from_file import add_max_min as add_max_min_sell
 from data_labeler_from_file import add_label_column
 from forex_utils import fetch_forex_data, prepare_data_table
@@ -28,9 +31,42 @@ from dotenv import load_dotenv
 import requests
 import lightgbm as lgb
 import pandas as pd
+import matplotlib.pyplot as plt
 
 # Load environment variables from .env file
 load_dotenv()
+
+
+def add_buy_sell_column(
+    df,
+    gross_expected_return=0.025,
+    look_ahead_days=21,
+):
+    """Add buy and sell signal columns to the DataFrame."""
+    df["buy"] = 0
+    df["sell"] = 0
+
+    # Changed range to cover full DataFrame length
+    for index in range(len(df)):
+        current_price = df["Close"].iloc[index]
+
+        # Check for buy signal (only when there's enough future data)
+        if index < len(df) - look_ahead_days:
+            for future_index in range(index + 1, index + look_ahead_days + 1):
+                expected_return = 1 + gross_expected_return
+                threshold = current_price * expected_return
+                if df["Close"].iloc[future_index] > threshold:
+                    df.at[df.index[index], "buy"] = 1
+
+        # Check for sell signal (for all valid indices)
+        if index >= look_ahead_days:
+            for past_index in range(index - look_ahead_days, index):
+                expected_return = 1 + gross_expected_return
+                threshold = df["Close"].iloc[past_index] * expected_return
+                if df["Close"].iloc[index] > threshold:
+                    df.at[df.index[index], "sell"] = 1
+
+    return df
 
 
 def check_indicator(df):
@@ -110,27 +146,17 @@ def main():
     currency_pairs = [
         ("USD", "TWD"),
         ("EUR", "TWD"),
-        ("SGD", "TWD"),
         ("GBP", "TWD"),
         ("AUD", "TWD"),
         ("CHF", "TWD"),
-        ("CAD", "TWD"),
-        ("JPY", "TWD"),
-        ("HKD", "TWD"),
         ("NZD", "TWD"),
+        ("JPY", "TWD"),  # Not for investment, but track for fun
     ]
     # Load model history and find best model for this currency pair
     model_history = pd.read_csv("lightGBM_model_history.csv")
 
     # Initialize an empty message
     full_message = ""
-
-    # Parameters for the label column
-    annual_expected_return = 0.20
-    spread = 0.02  # Spread is transaction cost usually from 0.005 to 0.03
-    holding_period = (1, 60)
-    look_ahead_days = 21
-    expected_return_per_trade = 0.005
 
     for from_symbol, to_symbol in currency_pairs:
         data = fetch_forex_data(from_symbol, to_symbol)
@@ -148,23 +174,22 @@ def main():
         df = add_rsi(df)
         df = add_bbands(df)
         df = add_bearish_candlestick_patterns(df)
-        # df = add_label_column(
-        #     df,
-        #     annual_expected_return,
-        #     holding_period,
-        #     spread,
-        #     look_ahead_days,
-        #     expected_return_per_trade,
-        # )
         df = add_technical_indicators(df)
+
+        # Find the gross expected return for the model
+        model_training_df = fetch_forex_data_for_model_training(
+            f"Alpha_Vantage_Data/{from_symbol}_{to_symbol}.csv"
+        )
+        gross_expected_return = find_gross_expected_return(model_training_df)
         df = add_buy_sell_column(
             df,
-            annual_expected_return,
-            holding_period,
-            spread,
-            look_ahead_days,
-            expected_return_per_trade,
+            gross_expected_return,
         )
+
+        # Plot the Close price and the buy/sell signal
+        plt.figure(figsize=(12, 6))
+        plt.plot(df["Close"], label="Close Price", alpha=0.7)
+
         df = calculate_return_since_last_buy(df)
         df = calculate_days_since_last_buy(df)
 
@@ -194,32 +219,16 @@ def main():
 
         df_buy = df[required_features]
 
-        gbm_sell = lgb.Booster(model_file=f"live_models/lightgbm_model_sell_signal.txt")
-        # Select features for sell model
-        sell_required_features = [
-            col for col in gbm_sell.feature_name() if col in df.columns
-        ]
-        sell_missing = set(gbm_sell.feature_name()) - set(df.columns)
-
-        if sell_missing:
-            print(f"Sell model missing features: {sell_missing}")
-
-        df_sell = df[sell_required_features]
-
         # Printe the head and tail of the DataFrame
         print(df_buy.head())
         print(df_buy.tail())
-        print(df_sell.head())
-        print(df_sell.tail())
+        print(df.head())
+        print(df.tail())
 
         # Predict the label for the latest date
         X_latest_buy = df_buy.iloc[-1:]  # Get the latest row
         y_pred_latest_buy = gbm_buy.predict(
             X_latest_buy, num_iteration=gbm_buy.best_iteration
-        )
-        X_latest_sell = df_sell.iloc[-1:]  # Get the latest row
-        y_pred_latest_sell = gbm_sell.predict(
-            X_latest_sell, num_iteration=gbm_sell.best_iteration
         )
         # Print the most recent date in the dataset
         print(
@@ -227,7 +236,6 @@ def main():
         )
         # Convert probabilities to class labels
         buy = 1 if y_pred_latest_buy[0] >= 0.5 else 0
-        sell = 1 if y_pred_latest_sell[0] >= 0.5 else 0
         # Coverting the label to a string
         predicted_buy_str = ""
         if buy == 1:
@@ -235,15 +243,7 @@ def main():
         else:
             predicted_buy_str = "hold"
 
-        predicted_sell_str = ""
-        if sell == 1:
-            predicted_sell_str = "sell"
-        else:
-            predicted_sell_str = "hold"
-
-        # Check the indicator
-        # indicator = check_indicator(df)
-        # print(f"Indicator for {from_symbol}/{to_symbol}: ", indicator)
+        predicted_sell_str = "sell" if df.iloc[-1]["sell"] == 1 else "hold"
 
         # Append message for the current pair
         full_message += (

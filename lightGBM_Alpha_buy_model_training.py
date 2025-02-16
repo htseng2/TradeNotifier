@@ -18,6 +18,19 @@ import csv
 import json
 from pathlib import Path
 
+spread_table = {
+    ("USD", "TWD"): 0.003,
+    ("EUR", "TWD"): 0.012,
+    ("NZD", "TWD"): 0.012,
+    ("GBP", "TWD"): 0.013,
+    ("AUD", "TWD"): 0.014,
+    ("CHF", "TWD"): 0.015,
+    ("HKD", "TWD"): 0.017,
+    # ("JPY", "TWD"): 0.02,
+    # ("SGD", "TWD"): 0.013,
+    # ("CAD", "TWD"): 0.017,
+}
+
 
 # ----------------------------
 # Data Preparation Functions
@@ -169,11 +182,9 @@ def add_technical_indicators(df):
     return df
 
 
-def generate_labels(
-    df, lookahead=21, expected_return=0.005, spread=0.02, trim_data=True
-):
+def generate_labels(df, lookahead=21, gross_expected_return=0.025, trim_data=True):
     df["buy"] = 0
-    threshold = 1 + expected_return + spread
+    threshold = 1 + gross_expected_return
 
     for i in range(len(df) - lookahead):
         current_price = df["Close"].iloc[i]
@@ -183,6 +194,59 @@ def generate_labels(
             df.at[df.index[i], "buy"] = 1
 
     return df.iloc[lookahead:-lookahead] if trim_data else df
+
+
+def find_gross_expected_return(
+    df,
+    target_percentage=25.0,
+    lookahead=21,
+    tolerance=0.5,
+    max_iterations=100,
+):
+    """
+    Finds the optimal expected_return such that approximately target_percentage
+    of the data points are labeled as 'buy'.
+    """
+    lower = 0.00
+    upper = 0.05  # Adjust based on domain knowledge
+    optimal_expected_return = None
+
+    for iteration in range(max_iterations):
+        mid = (lower + upper) / 2
+        temp_df = generate_labels(
+            df.copy(),
+            lookahead=lookahead,
+            gross_expected_return=mid,
+            trim_data=True,
+        )
+        total_buys = temp_df["buy"].sum()
+        total_data = len(temp_df)
+        buy_percentage = (total_buys / total_data) * 100
+
+        print(
+            f"Iteration {iteration + 1}: expected_return={mid:.5f}, "
+            f"Buy Percentage={buy_percentage:.2f}%"
+        )
+
+        if abs(buy_percentage - target_percentage) <= tolerance:
+            optimal_expected_return = mid
+            break
+        elif buy_percentage < target_percentage:
+            # Need more buy signals - lower the threshold by decreasing expected_return
+            upper = mid  # Search lower half
+        else:
+            # Need fewer buy signals - raise the threshold by increasing expected_return
+            lower = mid  # Search upper half
+
+    if optimal_expected_return is None:
+        print("Warning: Optimal expected_return not found within maximum iterations.")
+        optimal_expected_return = mid
+
+    print(
+        f"Optimal expected_return found: {optimal_expected_return:.5f} "
+        f"with Buy Percentage: {buy_percentage:.2f}%"
+    )
+    return optimal_expected_return
 
 
 # ----------------------------
@@ -375,18 +439,18 @@ def save_results_report(results_path, metrics, features, params):
 def main():
     # Data Preparation
     currency_pairs = [
-        # ("USD", "TWD"),
+        ("USD", "TWD"),
         # ("EUR", "TWD"),
-        # ("SGD", "TWD"),
         # ("GBP", "TWD"),
         # ("AUD", "TWD"),
-        ("CHF", "TWD"),
-        # ("CAD", "TWD"),
-        # ("JPY", "TWD"),
-        # ("HKD", "TWD"),
+        # ("CHF", "TWD"),
         # ("NZD", "TWD"),
-        # Not enough data or unpredicatable with current set of features
+        # ("JPY", "TWD"),  # Not for investment, but track for fun
+        # Not for investment
+        # ("SGD", "TWD"),
+        # ("CAD", "TWD"),
         # ("CNY", "TWD"),
+        # ("HKD", "TWD"),
     ]
     dfs = []
 
@@ -394,7 +458,23 @@ def main():
         df = fetch_forex_data(f"Alpha_Vantage_Data/{pair[0]}_{pair[1]}.csv")
         df = prepare_data_table(df)
         df = add_technical_indicators(df)
-        df = generate_labels(df)
+
+        # Find the optimal expected_return for 25% buy labels
+        optimal_expected_return = find_gross_expected_return(
+            df,
+            target_percentage=25.0,
+            lookahead=21,
+            tolerance=0.5,
+            max_iterations=100,
+        )
+
+        # Generate labels using the optimal expected_return
+        df = generate_labels(
+            df,
+            lookahead=21,
+            gross_expected_return=optimal_expected_return,
+            trim_data=True,
+        )
         dfs.append(df)
 
     full_df = pd.concat(dfs)
@@ -514,7 +594,27 @@ def main():
     )
     test_df = prepare_data_table(test_df)
     test_df = add_technical_indicators(test_df)
-    test_df = generate_labels(test_df, trim_data=False)
+    gross_expected_return = find_gross_expected_return(
+        test_df,
+        target_percentage=25.0,
+        lookahead=21,
+        tolerance=0.5,
+        max_iterations=100,
+    )
+    test_df = generate_labels(
+        test_df,
+        lookahead=21,
+        gross_expected_return=gross_expected_return,
+        trim_data=False,
+    )
+
+    # print total number of buy signals as a percentage of total data
+    total_buys = test_df["buy"].sum()
+    total_data = len(test_df)
+    percentage_buys = (total_buys / total_data) * 100
+    print(
+        f"Total Buy Signals: {total_buys} out of {total_data} data points ({percentage_buys:.2f}%)"
+    )
 
     # Prepare features and filter
     X_test, y_test = prepare_features(test_df)
