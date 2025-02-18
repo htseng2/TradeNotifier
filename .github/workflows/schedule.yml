@@ -2,8 +2,8 @@ name: Run Forex Script
 
 on:
   schedule:
-    # Runs at 8 AM Taipei time (12 AM UTC) every day
-    - cron: "0 0 * * *"
+    # Runs at 9 AM Taipei time (1 AM UTC) every day
+    - cron: "0 1 * * *"
   workflow_dispatch: # Allows manual triggering
 
 jobs:

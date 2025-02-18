@@ -141,6 +141,20 @@ def send_notification(message):
     )
 
 
+spread_table = {
+    ("USD", "TWD"): 0.003,
+    ("EUR", "TWD"): 0.012,
+    ("NZD", "TWD"): 0.012,
+    ("GBP", "TWD"): 0.013,
+    ("AUD", "TWD"): 0.014,
+    ("CHF", "TWD"): 0.015,
+    ("HKD", "TWD"): 0.017,
+    ("JPY", "TWD"): 0.02,
+    ("SGD", "TWD"): 0.013,
+    ("CAD", "TWD"): 0.017,
+}
+
+
 def main():
     # Alpha Vantage API only supports up to 10 requests per minute, and 25 requests per day
     currency_pairs = [
@@ -264,7 +278,8 @@ def main():
             predicted_sell_str = "hold"
 
         # Append message for the current pair
-        full_message += f"{from_symbol}/{to_symbol}: {predicted_buy_str}, {predicted_sell_str} ({gross_expected_return*100:.1f}%)\n\n"
+        spread = spread_table[(from_symbol, to_symbol)]
+        full_message += f"{from_symbol}/{to_symbol}: {predicted_buy_str}, {predicted_sell_str} ({(gross_expected_return - spread)*100:.1f}%)\n\n"
 
     # Send the full notification
     send_notification(full_message)
