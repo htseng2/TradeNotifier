@@ -62,9 +62,9 @@ def main():
         ("JPY", "TWD"),
         ("HKD", "TWD"),
         # Not considering the following pairs for now
-        ("NZD", "TWD"),
-        ("THB", "TWD"),
-        ("ZAR", "TWD"),
+        # ("NZD", "TWD"),
+        # ("THB", "TWD"),
+        # ("ZAR", "TWD"),
     ]
 
     # Create directory if it doesn't exist

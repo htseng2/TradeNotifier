@@ -439,7 +439,7 @@ def save_results_report(results_path, metrics, features, params):
 def main():
     # Data Preparation
     currency_pairs = [
-        ("USD", "TWD"),
+        # ("USD", "TWD"),
         # ("EUR", "TWD"),
         # ("GBP", "TWD"),
         # ("AUD", "TWD"),
@@ -449,8 +449,8 @@ def main():
         # Not for investment
         # ("SGD", "TWD"),
         # ("CAD", "TWD"),
+        ("HKD", "TWD"),
         # ("CNY", "TWD"),
-        # ("HKD", "TWD"),
     ]
     dfs = []
 
