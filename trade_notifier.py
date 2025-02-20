@@ -178,6 +178,16 @@ def main():
         # Prepare the data table
         df = prepare_data_table(data)
 
+        # Add CSV append functionality (same as downloader)
+        filename = f"Alpha_Vantage_Data/{from_symbol}_{to_symbol}.csv"
+        if os.path.exists(filename):
+            existing_df = pd.read_csv(filename, index_col=0, parse_dates=True)
+            new_data = df[~df.index.isin(existing_df.index)]
+            combined_df = pd.concat([existing_df, new_data]).sort_index()
+        else:
+            combined_df = df
+        combined_df.to_csv(filename)
+
         # Enhance the DataFrame with additional features
         df = add_max_min(df)
         df = add_max_min_sell(df)

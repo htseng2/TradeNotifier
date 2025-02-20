@@ -13,6 +13,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0 # Needed to access commit history
 
       - name: Set up Python
         uses: actions/setup-python@v2
@@ -33,3 +36,12 @@ jobs:
           SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
           RECEIVER_EMAIL: ${{ secrets.RECEIVER_EMAIL }}
         run: python trade_notifier.py
+
+      - name: Amend Commit with CSV Changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git pull --rebase  # Ensure we have latest changes
+          git add *.csv
+          git commit --amend --no-edit --author="github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
+          git push --force

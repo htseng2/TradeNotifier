@@ -51,18 +51,18 @@ def prepare_data_table(data):
 
 def main():
     currency_pairs = [
-        ("USD", "TWD"),
-        ("CNY", "TWD"),
-        ("EUR", "TWD"),
-        ("SGD", "TWD"),
-        ("GBP", "TWD"),
-        ("AUD", "TWD"),
-        ("CHF", "TWD"),
-        ("CAD", "TWD"),
-        ("JPY", "TWD"),
-        ("HKD", "TWD"),
+        # ("USD", "TWD"),
+        # ("EUR", "TWD"),
+        # ("SGD", "TWD"),
+        # ("GBP", "TWD"),
+        # ("AUD", "TWD"),
+        # ("CHF", "TWD"),
+        # ("CAD", "TWD"),
+        # ("JPY", "TWD"),
+        # ("HKD", "TWD"),
+        ("NZD", "TWD"),
         # Not considering the following pairs for now
-        # ("NZD", "TWD"),
+        # ("CNY", "TWD"),
         # ("THB", "TWD"),
         # ("ZAR", "TWD"),
     ]
@@ -78,7 +78,7 @@ def main():
             # Prepare data using existing utility function
             df = prepare_data_table(raw_data)
 
-            # Rename columns to match required format
+            # Rename columns to match required format (preserved as requested)
             df = df.rename(
                 columns={
                     "1. open": "Open",
@@ -88,10 +88,21 @@ def main():
                 }
             )[["Open", "High", "Low", "Close"]]
 
-            # Save to CSV
+            # Save to CSV (with append functionality)
             filename = f"Alpha_Vantage_Data/{from_currency}_{to_currency}.csv"
-            df.to_csv(filename)
-            print(f"Saved {len(df)} records to {filename}")
+
+            if os.path.exists(filename):
+                # Read existing data and filter new entries
+                existing_df = pd.read_csv(filename, index_col=0, parse_dates=True)
+                new_data = df[~df.index.isin(existing_df.index)]
+                combined_df = pd.concat([existing_df, new_data]).sort_index()
+            else:
+                combined_df = df
+
+            combined_df.to_csv(filename)
+            print(
+                f"Updated {filename} with {len(combined_df)} total records ({len(new_data) if os.path.exists(filename) else len(df)} new)"
+            )
 
         except Exception as e:
             print(f"Error processing {from_currency}/{to_currency}: {str(e)}")
