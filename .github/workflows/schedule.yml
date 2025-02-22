@@ -8,6 +8,7 @@ on:
 
 jobs:
   run-script:
+    if: github.ref == 'refs/heads/main' # Add branch check here instead
     runs-on: ubuntu-latest
     permissions:
       contents: write
