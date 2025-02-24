@@ -1,0 +1,2 @@
+timestamp,currency_pair,model_path,gross_expected_return,accuracy,precision,recall,f1,roc_auc,num_features,model_type,dataset_range_start,dataset_range_end
+20250224_113942,USD_TWD,saved_models/buy_model_20_USD_TWD_20250224_113942.pkl,0.0130859375,0.983817427385892,0.985267034990792,0.9452296819787986,0.9648331830477908,0.9704456435924362,7,LightGBM,2015-12-01,2025-02-24
