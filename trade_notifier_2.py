@@ -3,7 +3,7 @@ from train_buy_5 import (
     generate_features,
     FEATURES as BUY_FEATURES,
 )
-from train_sell_3 import add_technical_indicators
+from train_sell_3 import add_technical_indicators, FEATURES as SELL_FEATURES
 import pandas as pd
 import joblib
 import matplotlib.pyplot as plt
@@ -16,30 +16,6 @@ from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
-
-# Simplified sell features list (removed redundant comments)
-SELL_FEATURES = [
-    "open",
-    "high",
-    "low",
-    "close",  # Price features
-    "RSI",
-    "MACD",
-    "MACD_signal",
-    "ATR",
-    "STOCH_K",
-    "STOCH_D",
-    "BB_upper",
-    "BB_middle",
-    "BB_lower",
-    "momentum",
-    "volatility",
-    "return_1",
-    "return_2",
-    "return_3",
-    "return_5",
-    "return_10",
-]
 
 
 def prepare_data_table(data):

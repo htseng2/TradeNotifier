@@ -32,6 +32,25 @@ CURRENCY_PAIRS = [
 TRAINING_DATA_YEARS = 5
 LOOP_COUNT = 20
 
+FEATURES = [
+    "RSI",
+    "MACD",
+    "MACD_signal",
+    "ATR",
+    "STOCH_K",
+    "STOCH_D",
+    "BB_upper",
+    "BB_middle",
+    "BB_lower",
+    "momentum",
+    "volatility",
+    "return_1",
+    "return_2",
+    "return_3",
+    "return_5",
+    "return_10",
+]
+
 
 # ----------------------------
 # 🚀 Load & Preprocess Data
@@ -187,7 +206,7 @@ def objective(trial, X: pd.DataFrame, y: pd.Series) -> float:
 # 📈 Backtest & Evaluate Model
 # ----------------------------
 def backtest_model(model, df):
-    features = [col for col in df.columns if col not in ["sell_signal"]]
+    features = FEATURES
     df["sell_prediction"] = model.predict(df[features])
 
     # Calculate evaluation metrics
@@ -347,8 +366,7 @@ if __name__ == "__main__":
             loss_threshold = find_gross_expected_loss(df)
             df = generate_sell_labels(df, loss_threshold=loss_threshold)
 
-            features = [col for col in df.columns if col not in ["sell_signal"]]
-            X, y = df[features], df["sell_signal"]
+            X, y = df[FEATURES], df["sell_signal"]
 
             # Hyperparameter optimization
             study = optuna.create_study(direction="maximize")

@@ -32,6 +32,25 @@ CURRENCY_PAIRS = [
 TRAINING_DATA_YEARS = 10
 LOOP_COUNT = 1
 
+FEATURES = [
+    "RSI",
+    "MACD",
+    "MACD_signal",
+    "ATR",
+    "STOCH_K",
+    "STOCH_D",
+    "BB_upper",
+    "BB_middle",
+    "BB_lower",
+    "momentum",
+    "volatility",
+    "return_1",
+    "return_2",
+    "return_3",
+    "return_5",
+    "return_10",
+]
+
 
 # ----------------------------
 # 🚀 Load & Preprocess Data
@@ -104,7 +123,7 @@ def define_sell_signal(df):
 # 🎯 Train LightGBM Model with Hyperparameter Optimization
 # ----------------------------
 def train_lightgbm(df):
-    features = [col for col in df.columns if col not in ["sell_signal"]]
+    features = FEATURES
     target = "sell_signal"
 
     X, y = df[features], df[target]
@@ -175,7 +194,7 @@ def train_lightgbm(df):
 # 📈 Backtest & Evaluate Model
 # ----------------------------
 def backtest_model(model, df):
-    features = [col for col in df.columns if col not in ["sell_signal"]]
+    features = FEATURES
     df["sell_prediction"] = model.predict(df[features])
 
     # Calculate evaluation metrics
