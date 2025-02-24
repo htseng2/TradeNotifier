@@ -8,6 +8,14 @@ import pandas as pd
 import joblib
 import matplotlib.pyplot as plt
 import os
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import requests
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Simplified sell features list (removed redundant comments)
 SELL_FEATURES = [
@@ -94,6 +102,58 @@ def predict_and_plot(data, buy_model, sell_model, pair):
     plt.show()
 
 
+def send_email_notification(
+    subject, message, sender_email, receiver_email, gmail_password
+):
+    """Send email notification using Gmail SMTP"""
+    msg = MIMEMultipart()
+    msg["From"] = sender_email
+    msg["To"] = receiver_email
+    msg["Subject"] = subject
+    msg.attach(MIMEText(message, "plain"))
+
+    try:
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.starttls()
+            server.login(sender_email, gmail_password)
+            server.sendmail(sender_email, receiver_email, msg.as_string())
+        print("Email notification sent successfully.")
+    except Exception as e:
+        print(f"Failed to send email notification: {e}")
+
+
+def send_telegram_notification(message):
+    """Send notification via Telegram bot"""
+    telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+    telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID")
+
+    url = f"https://api.telegram.org/bot{telegram_bot_token}/sendMessage"
+    payload = {"chat_id": telegram_chat_id, "text": message}
+    try:
+        response = requests.post(url, data=payload)
+        if response.status_code == 200:
+            print("Telegram notification sent successfully.")
+        else:
+            print(f"Failed to send Telegram notification: {response.text}")
+    except Exception as e:
+        print(f"Failed to send Telegram notification: {e}")
+
+
+def send_notification(message):
+    """Handle all notification methods"""
+    # Email configuration
+    sender_email = os.getenv("SENDER_EMAIL")
+    receiver_email = os.getenv("RECEIVER_EMAIL")
+    gmail_password = os.getenv("GMAIL_PASSWORD")
+    email_subject = "Forex Trading Signals Alert"
+
+    # Send both notifications
+    send_telegram_notification(message)
+    send_email_notification(
+        email_subject, message, sender_email, receiver_email, gmail_password
+    )
+
+
 def main():
     currency_pairs = [
         ("USD", "TWD"),
@@ -148,7 +208,7 @@ def main():
             f"Combined Accuracy: {(best_buy_5_day.accuracy + best_sell_3_day.accuracy) / 2:.2%}\n\n"
         )
 
-    print("\n".join(message))
+    send_notification("\n".join(message))
 
 
 if __name__ == "__main__":
