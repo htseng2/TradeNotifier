@@ -1,9 +1,9 @@
 from forex_utils import fetch_forex_data
-from lightGBM_forex_swing_trading_model import (
+from train_buy_5 import (
     generate_features,
     FEATURES as BUY_FEATURES,
 )
-from lightGBM_forex_swing_trading_sell import add_technical_indicators
+from train_sell_3 import add_technical_indicators
 import pandas as pd
 import joblib
 import matplotlib.pyplot as plt
@@ -106,8 +106,8 @@ def main():
     ]
 
     # Model loading simplified
-    buy_history = pd.read_csv("model_logs/training_history.csv")
-    sell_history = pd.read_csv("model_logs/sell_history.csv")
+    buy_history_5_day = pd.read_csv("model_logs/training_history.csv")
+    sell_history_3_day = pd.read_csv("model_logs/sell_history.csv")
 
     message = ["Forex Trading Signals:\n"]
 
@@ -117,30 +117,35 @@ def main():
         data = generate_features(data)
 
         # Simplified model selection
-        best_buy = (
-            buy_history[buy_history.currency_pair == pair]
+        best_buy_5_day = (
+            buy_history_5_day[buy_history_5_day.currency_pair == pair]
             .nlargest(1, "f1_score")
             .iloc[0]
         )
-        best_sell = (
-            sell_history[sell_history.currency_pair == pair].nlargest(1, "f1").iloc[0]
+        best_sell_3_day = (
+            sell_history_3_day[sell_history_3_day.currency_pair == pair]
+            .nlargest(1, "f1")
+            .iloc[0]
         )
 
-        buy_model = joblib.load(best_buy["model_path"])
-        sell_model = joblib.load(best_sell["model_path"])
+        buy_model_5_day = joblib.load(best_buy_5_day["model_path"])
+        sell_model_3_day = joblib.load(best_sell_3_day["model_path"])
 
         # Prediction simplified
         latest = data.iloc[-1]
-        buy_pred = buy_model.predict([latest[BUY_FEATURES]])[0]
-        sell_pred = int(sell_model.predict([latest[SELL_FEATURES]])[0] > 0.5)
+        buy_pred_5_day = buy_model_5_day.predict([latest[BUY_FEATURES]])[0]
+        sell_pred_3_day = int(
+            sell_model_3_day.predict([latest[SELL_FEATURES]])[0] > 0.5
+        )
 
-        predict_and_plot(data.copy(), buy_model, sell_model, pair)
+        predict_and_plot(data.copy(), buy_model_5_day, sell_model_3_day, pair)
 
         message.append(
-            f"{pair} Signal: {'BUY' if buy_pred else 'HOLD'} : {'SELL' if sell_pred else 'HOLD'}\n"
-            f"Buy Model F1: {best_buy.f1_score:.2%}\n"
-            f"Sell Model F1: {best_sell.f1:.2%}\n"
-            f"Combined Accuracy: {(best_buy.accuracy + best_sell.accuracy) / 2:.2%}\n\n"
+            f"{pair} Signal: {'BUY' if buy_pred_5_day else 'HOLD'} (5-day) : "
+            f"{'SELL' if sell_pred_3_day else 'HOLD'} (3-day)\n"
+            f"Buy Model (5-day) F1: {best_buy_5_day.f1_score:.2%}\n"
+            f"Sell Model (3-day) F1: {best_sell_3_day.f1:.2%}\n"
+            f"Combined Accuracy: {(best_buy_5_day.accuracy + best_sell_3_day.accuracy) / 2:.2%}\n\n"
         )
 
     print("\n".join(message))
