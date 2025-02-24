@@ -12,10 +12,23 @@ from sklearn.metrics import (
 )
 import talib
 import matplotlib.pyplot as plt
+from pathlib import Path
+from datetime import datetime
+import joblib
+
+currency_pairs = [
+    "USD_TWD",
+    "EUR_TWD",
+    "GBP_TWD",
+    "AUD_TWD",
+    "CHF_TWD",
+    "NZD_TWD",
+    "JPY_TWD",
+]
 
 # 1️⃣ Load Your Forex Data
 data = pd.read_csv(
-    "Alpha_Vantage_Data/USD_TWD.csv",
+    f"Alpha_Vantage_Data/{currency_pairs[0]}.csv",
     skiprows=1,  # Skip malformed header row
     header=None,
     names=["timestamp", "open", "high", "low", "close"],
@@ -149,54 +162,99 @@ final_model.fit(X, y)
 # 7️⃣ Train and Evaluate Final Model
 print("\nFinal Model Evaluation:")
 final_predictions = final_model.predict(X)
-print(f"Accuracy: {accuracy_score(y, final_predictions):.4f}")
-print(f"Precision: {precision_score(y, final_predictions):.4f}")
-print(f"Recall: {recall_score(y, final_predictions):.4f}")
-print(f"F1 Score: {f1_score(y, final_predictions):.4f}")
-print(f"ROC AUC: {roc_auc_score(y, final_predictions):.4f}")
+
+# Store metrics for logging
+metrics = {
+    "accuracy": accuracy_score(y, final_predictions),
+    "precision": precision_score(y, final_predictions),
+    "recall": recall_score(y, final_predictions),
+    "f1": f1_score(y, final_predictions),
+    "roc_auc": roc_auc_score(y, final_predictions),
+}
+
+print(f"Accuracy: {metrics['accuracy']:.4f}")
+print(f"Precision: {metrics['precision']:.4f}")
+print(f"Recall: {metrics['recall']:.4f}")
+print(f"F1 Score: {metrics['f1']:.4f}")
+print(f"ROC AUC: {metrics['roc_auc']:.4f}")
 
 # 8️⃣ Generate Buy Signals for Trading
 data["predicted_buy_signal"] = final_model.predict(X)
 
-# 🔼 Add this new section for visualization
-plt.figure(figsize=(15, 8))
-plt.subplot(2, 1, 1)
-plt.plot(data.index, data["close"], label="Price", alpha=0.5)
-plt.plot(
-    data.index[data["buy_signal"] == 1],
-    data["close"][data["buy_signal"] == 1],
-    "^",
-    markersize=10,
-    color="g",
-    label="Actual Buy Signals",
-)
-plt.plot(
-    data.index[data["predicted_buy_signal"] == 1],
-    data["close"][data["predicted_buy_signal"] == 1],
-    "o",
-    markersize=8,
-    color="r",
-    alpha=0.7,
-    label="Predicted Buy Signals",
-)
-plt.title("Buy Signal Comparison")
-plt.ylabel("Price")
-plt.legend()
+# # 🔼 Add this new section for visualization
+# plt.figure(figsize=(15, 8))
+# plt.subplot(2, 1, 1)
+# plt.plot(data.index, data["close"], label="Price", alpha=0.5)
+# plt.plot(
+#     data.index[data["buy_signal"] == 1],
+#     data["close"][data["buy_signal"] == 1],
+#     "^",
+#     markersize=10,
+#     color="g",
+#     label="Actual Buy Signals",
+# )
+# plt.plot(
+#     data.index[data["predicted_buy_signal"] == 1],
+#     data["close"][data["predicted_buy_signal"] == 1],
+#     "o",
+#     markersize=8,
+#     color="r",
+#     alpha=0.7,
+#     label="Predicted Buy Signals",
+# )
+# plt.title("Buy Signal Comparison")
+# plt.ylabel("Price")
+# plt.legend()
 
-plt.subplot(2, 1, 2)
-plt.plot(data.index, data["RSI"], label="RSI", color="purple", alpha=0.7)
-plt.axhline(70, linestyle="--", color="r", alpha=0.5)
-plt.axhline(30, linestyle="--", color="g", alpha=0.5)
-plt.ylabel("RSI")
-plt.xlabel("Date")
+# plt.subplot(2, 1, 2)
+# plt.plot(data.index, data["RSI"], label="RSI", color="purple", alpha=0.7)
+# plt.axhline(70, linestyle="--", color="r", alpha=0.5)
+# plt.axhline(30, linestyle="--", color="g", alpha=0.5)
+# plt.ylabel("RSI")
+# plt.xlabel("Date")
 
-plt.tight_layout()
-plt.savefig("signal_comparison.png")
-plt.show()
+# plt.tight_layout()
+# plt.savefig("signal_comparison.png")
+# plt.show()
 
-# 9️⃣ Save Model for Future Use
-import joblib
+# 9️⃣ Save Model and Log Training Session
+# Create models directory if not exists
+Path("saved_models").mkdir(parents=True, exist_ok=True)
 
-joblib.dump(final_model, "lightgbm_forex_swing_model.pkl")
+# Generate timestamped filename
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+model_filename = f"saved_models/lightgbm_forex_swing_model_{timestamp}.pkl"
+joblib.dump(final_model, model_filename)
+print(f"✅ Model saved to: {model_filename}")
+
+# Create model logs directory if not exists
+Path("model_logs").mkdir(parents=True, exist_ok=True)
+
+# Create training log entry
+log_entry = {
+    "timestamp": timestamp,
+    "currency_pair": currency_pairs[0],
+    "model_path": model_filename,
+    "accuracy": metrics["accuracy"],
+    "precision": metrics["precision"],
+    "recall": metrics["recall"],
+    "f1_score": metrics["f1"],
+    "roc_auc": metrics["roc_auc"],
+    "num_features": len(features),
+    "model_type": "LightGBM",
+    "dataset_range_start": data.index.min().strftime("%Y-%m-%d"),
+    "dataset_range_end": data.index.max().strftime("%Y-%m-%d"),
+}
+
+# Append to training history CSV
+log_df = pd.DataFrame([log_entry])
+log_path = "model_logs/training_history.csv"
+
+if Path(log_path).exists():
+    log_df.to_csv(log_path, mode="a", header=False, index=False)
+else:
+    log_df.to_csv(log_path, index=False)
+
+print(f"✅ Training log saved to: {log_path}")
 
 print("✅ Model Training Complete. Ready for Backtesting!")
