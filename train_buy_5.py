@@ -202,7 +202,7 @@ def save_artifacts(model, metrics: dict, data: pd.DataFrame, pair: str) -> None:
     Path("model_logs").mkdir(parents=True, exist_ok=True)
 
     # Save model
-    model_path = f"saved_models/buy_model_{pair}_{timestamp}.pkl"
+    model_path = f"saved_models/buy_model_5_{pair}_{timestamp}.pkl"
     joblib.dump(model, model_path)
 
     # Save logs
@@ -221,10 +221,43 @@ def save_artifacts(model, metrics: dict, data: pd.DataFrame, pair: str) -> None:
         ]
     )
 
-    log_path = "model_logs/training_history.csv"
+    log_path = "model_logs/train_buy_5_history.csv"
     log_entry.to_csv(
         log_path, mode="a", header=not Path(log_path).exists(), index=False
     )
+
+    # Clean up old models
+    if Path(log_path).exists():
+        full_log = pd.read_csv(log_path)
+        pair_log = full_log[
+            (full_log["currency_pair"] == pair) & (full_log["timestamp"] != timestamp)
+        ]
+
+        models_to_delete = []
+        indices_to_drop = []
+
+        current_time = datetime.strptime(timestamp, "%Y%m%d_%H%M%S")
+        current_f1 = metrics["f1"]
+
+        for index, row in pair_log.iterrows():
+            model_time = datetime.strptime(row["timestamp"], "%Y%m%d_%H%M%S")
+            age_difference = current_time - model_time
+
+            if age_difference.days >= 1 or row["f1"] < current_f1:
+                models_to_delete.append(row["model_path"])
+                indices_to_drop.append(index)
+
+        # Delete model files
+        for model_path in models_to_delete:
+            if Path(model_path).exists():
+                Path(model_path).unlink()
+                print(f"Deleted old model: {model_path}")
+
+        # Update log file if entries were removed
+        if indices_to_drop:
+            updated_log = full_log.drop(indices_to_drop)
+            updated_log.to_csv(log_path, index=False)
+            print(f"Removed {len(indices_to_drop)} old entries from log")
 
 
 def main():

@@ -166,8 +166,8 @@ def main():
     ]
 
     # Model loading simplified
-    buy_history_5_day = pd.read_csv("model_logs/training_history.csv")
-    sell_history_3_day = pd.read_csv("model_logs/sell_history.csv")
+    buy_history_5_day = pd.read_csv("model_logs/train_buy_5_history.csv")
+    sell_history_3_day = pd.read_csv("model_logs/train_sell_3_history.csv")
 
     message = ["Forex Trading Signals:\n"]
 
