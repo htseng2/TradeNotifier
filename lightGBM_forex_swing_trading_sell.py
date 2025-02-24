@@ -29,8 +29,8 @@ CURRENCY_PAIRS = [
     # "NZD_TWD",
     # "JPY_TWD",
 ]
-
-LOOP_COUNT = 20
+TRAINING_DATA_YEARS = 10
+LOOP_COUNT = 1
 
 
 # ----------------------------
@@ -47,8 +47,9 @@ def load_data(pair: str) -> pd.DataFrame:
     )
     df["timestamp"] = pd.to_datetime(df["timestamp"])
     df = df.set_index("timestamp")
-    # return df.loc[df.index >= pd.Timestamp.now() - pd.DateOffset(years=10)]
-    return df
+    return df.loc[
+        df.index >= pd.Timestamp.now() - pd.DateOffset(years=TRAINING_DATA_YEARS)
+    ]
 
 
 # ----------------------------
@@ -161,6 +162,11 @@ def train_lightgbm(df):
     # Final Model Training
     train_data = lgb.Dataset(X, label=y)
     final_model = lgb.train(best_params, train_data, num_boost_round=100)
+
+    # Print features used in training
+    print("\n📊 Features used in training:")
+    for feature in features:
+        print(f" - {feature}")
 
     return final_model
 

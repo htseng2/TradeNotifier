@@ -1,16 +1,37 @@
 from forex_utils import fetch_forex_data
 from lightGBM_forex_swing_trading_model import (
     generate_features,
-    generate_labels,
-    objective,
-    train_final_model,
-    FEATURES,
+    FEATURES as BUY_FEATURES,
 )
-import optuna
+from lightGBM_forex_swing_trading_sell import add_technical_indicators
 import pandas as pd
 import joblib
 import matplotlib.pyplot as plt
 import os
+
+# Simplified sell features list (removed redundant comments)
+SELL_FEATURES = [
+    "open",
+    "high",
+    "low",
+    "close",  # Price features
+    "RSI",
+    "MACD",
+    "MACD_signal",
+    "ATR",
+    "STOCH_K",
+    "STOCH_D",
+    "BB_upper",
+    "BB_middle",
+    "BB_lower",
+    "momentum",
+    "volatility",
+    "return_1",
+    "return_2",
+    "return_3",
+    "return_5",
+    "return_10",
+]
 
 
 def prepare_data_table(data):
@@ -32,39 +53,44 @@ def prepare_data_table(data):
     )[["open", "high", "low", "close"]]
 
     # Filter out weekends
-    return df[df.index.dayofweek < 5]
+    df = df[df.index.dayofweek < 5]
+
+    # Add sell model features (must happen before generate_features)
+    df = add_technical_indicators(df)
+
+    return df
 
 
-def predict_and_plot(data, model, pair):
-    """Generate predictions and display interactive plot"""
-    # Make predictions for entire dataset
-    data["prediction"] = model.predict(data[FEATURES])
-
-    # Create plot
-    plt.figure(figsize=(12, 6))
-
-    # Plot closing price
-    plt.plot(data.index, data["close"], label="Closing Price", color="blue", alpha=0.5)
-
-    # Plot buy signals
-    buy_signals = data[data["prediction"] == 1]
-    plt.scatter(
-        buy_signals.index,
-        buy_signals["close"],
-        color="green",
-        marker="^",
-        s=100,
-        label="Buy Signal",
+def predict_and_plot(data, buy_model, sell_model, pair):
+    """Generate predictions and display interactive plot with signals"""
+    data["buy_prediction"] = buy_model.predict(data[BUY_FEATURES])
+    data["sell_prediction"] = (sell_model.predict(data[SELL_FEATURES]) > 0.5).astype(
+        int
     )
 
-    # Format plot
+    plt.figure(figsize=(12, 6))
+    plt.plot(data.index, data["close"], label="Closing Price", color="blue", alpha=0.5)
+
+    # Combined signal plotting
+    for signal_type, color, marker, label in [
+        ("buy_prediction", "green", "^", "Buy Signal"),
+        ("sell_prediction", "red", "v", "Sell Signal"),
+    ]:
+        signals = data[data[signal_type] == 1]
+        plt.scatter(
+            signals.index,
+            signals["close"],
+            color=color,
+            marker=marker,
+            s=100,
+            label=label,
+        )
+
     plt.title(f"{pair} Trading Signals")
     plt.xlabel("Date")
     plt.ylabel("Price")
     plt.legend()
     plt.grid(True)
-
-    # Show interactive plot
     plt.show()
 
 
@@ -79,43 +105,45 @@ def main():
         # ("JPY", "TWD"),  # Not for investment, but track for fun
     ]
 
-    # Load model training history
-    history_df = pd.read_csv("model_logs/training_history.csv")
+    # Model loading simplified
+    buy_history = pd.read_csv("model_logs/training_history.csv")
+    sell_history = pd.read_csv("model_logs/sell_history.csv")
 
-    full_message = "Forex Trading Signals:\n\n"
+    message = ["Forex Trading Signals:\n"]
 
     for from_symbol, to_symbol in currency_pairs:
         pair = f"{from_symbol}_{to_symbol}"
-        data = fetch_forex_data(from_symbol, to_symbol)
-        data = prepare_data_table(data)
-        # Generate features and labels
+        data = prepare_data_table(fetch_forex_data(from_symbol, to_symbol))
         data = generate_features(data)
 
-        # Find best model for this currency pair
-        best_model = (
-            history_df[history_df["currency_pair"] == pair]
-            .sort_values("f1_score", ascending=False)
+        # Simplified model selection
+        best_buy = (
+            buy_history[buy_history.currency_pair == pair]
+            .nlargest(1, "f1_score")
             .iloc[0]
         )
-
-        # Load model and make predictions
-        model = joblib.load(best_model["model_path"])
-        latest_prediction = model.predict(
-            data[FEATURES].iloc[-1].values.reshape(1, -1)
-        )[0]
-
-        # Generate predictions and plot
-        predict_and_plot(data.copy(), model, pair)
-
-        # Generate signal message
-        signal = "BUY" if latest_prediction == 1 else "HOLD"
-        full_message += (
-            f"{pair} Signal: {signal}\n"
-            f"Model F1 Score: {best_model['f1_score']:.2%}\n"
-            f"Accuracy: {best_model['accuracy']:.2%}\n\n"
+        best_sell = (
+            sell_history[sell_history.currency_pair == pair].nlargest(1, "f1").iloc[0]
         )
 
-    print(full_message)
+        buy_model = joblib.load(best_buy["model_path"])
+        sell_model = joblib.load(best_sell["model_path"])
+
+        # Prediction simplified
+        latest = data.iloc[-1]
+        buy_pred = buy_model.predict([latest[BUY_FEATURES]])[0]
+        sell_pred = int(sell_model.predict([latest[SELL_FEATURES]])[0] > 0.5)
+
+        predict_and_plot(data.copy(), buy_model, sell_model, pair)
+
+        message.append(
+            f"{pair} Signal: {'BUY' if buy_pred else 'HOLD'} : {'SELL' if sell_pred else 'HOLD'}\n"
+            f"Buy Model F1: {best_buy.f1_score:.2%}\n"
+            f"Sell Model F1: {best_sell.f1:.2%}\n"
+            f"Combined Accuracy: {(best_buy.accuracy + best_sell.accuracy) / 2:.2%}\n\n"
+        )
+
+    print("\n".join(message))
 
 
 if __name__ == "__main__":

@@ -14,18 +14,21 @@ from sklearn.metrics import (
     roc_auc_score,
     precision_score,
     recall_score,
+    confusion_matrix,
+    ConfusionMatrixDisplay,
 )
 
 CURRENCY_PAIRS = [
     "USD_TWD",
-    "EUR_TWD",
-    "GBP_TWD",
-    "AUD_TWD",
-    "CHF_TWD",
-    "NZD_TWD",
-    "JPY_TWD",
+    # "EUR_TWD",
+    # "GBP_TWD",
+    # "AUD_TWD",
+    # "CHF_TWD",
+    # "NZD_TWD",
+    # "JPY_TWD",
 ]
-LOOP_COUNT = 10
+LOOP_COUNT = 20
+TRAINING_DATA_YEARS = 10
 FEATURES = ["SMA_50", "SMA_200", "RSI", "MACD", "BB_upper", "BB_lower", "ATR"]
 
 
@@ -40,7 +43,9 @@ def load_data(pair: str) -> pd.DataFrame:
     )
     df["timestamp"] = pd.to_datetime(df["timestamp"])
     df = df.set_index("timestamp")
-    return df.loc[df.index >= pd.Timestamp.now() - pd.DateOffset(years=10)]
+    return df.loc[
+        df.index >= pd.Timestamp.now() - pd.DateOffset(years=TRAINING_DATA_YEARS)
+    ]
 
 
 def generate_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -132,45 +137,62 @@ def train_final_model(X: pd.DataFrame, y: pd.Series, best_params: dict) -> tuple
     }
 
 
-def plot_results(data: pd.DataFrame, pair: str) -> None:
-    """Visualize trading signals and indicators"""
-    plt.figure(figsize=(15, 8))
+def backtest_model(model, data: pd.DataFrame, pair: str) -> dict:
+    """Backtest model and generate performance metrics"""
+    features = FEATURES
+    data["predicted_buy_signal"] = model.predict(data[features])
+    y_true = data["buy_signal"]
+    y_pred = data["predicted_buy_signal"]
 
-    # Price and signals plot
-    plt.subplot(2, 1, 1)
-    plt.plot(data.index, data["close"], label="Price", alpha=0.5)
-    plt.plot(
+    # Calculate evaluation metrics
+    metrics = {
+        "accuracy": accuracy_score(y_true, y_pred),
+        "precision": precision_score(y_true, y_pred),
+        "recall": recall_score(y_true, y_pred),
+        "f1": f1_score(y_true, y_pred),
+        "roc_auc": roc_auc_score(y_true, y_pred),
+    }
+
+    print(f"\n🔍 Model Evaluation ({pair}):")
+    for metric, value in metrics.items():
+        print(f"{metric.capitalize()}: {value:.4f}")
+
+    # Plot confusion matrix
+    cm = confusion_matrix(y_true, y_pred)
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+    disp.plot()
+    plt.title(f"Confusion Matrix - {pair}")
+    plt.show()
+
+    # Price plot with signals
+    plt.figure(figsize=(12, 6))
+    plt.plot(data.index, data["close"], label="Price", alpha=0.7)
+
+    # Actual buy signals
+    plt.scatter(
         data.index[data["buy_signal"] == 1],
         data["close"][data["buy_signal"] == 1],
-        "^",
-        markersize=10,
+        marker="^",
         color="g",
-        label="Actual Buy Signals",
+        label="Actual Buy",
+        alpha=0.8,
     )
-    plt.plot(
+
+    # Predicted buy signals
+    plt.scatter(
         data.index[data["predicted_buy_signal"] == 1],
         data["close"][data["predicted_buy_signal"] == 1],
-        "o",
-        markersize=8,
+        marker="o",
         color="r",
-        alpha=0.7,
-        label="Predicted Buy Signals",
+        label="Predicted Buy",
+        alpha=0.6,
     )
-    plt.title(f"Buy Signal Comparison - {pair}")
-    plt.ylabel("Price")
+
     plt.legend()
+    plt.title(f"Buy Signal Comparison - {pair}")
+    plt.show()
 
-    # RSI plot
-    plt.subplot(2, 1, 2)
-    plt.plot(data.index, data["RSI"], label="RSI", color="purple", alpha=0.7)
-    plt.axhline(70, linestyle="--", color="r", alpha=0.5)
-    plt.axhline(30, linestyle="--", color="g", alpha=0.5)
-    plt.ylabel("RSI")
-    plt.xlabel("Date")
-
-    plt.tight_layout()
-    plt.savefig(f"signal_comparison_{pair}.png")
-    plt.close()
+    return metrics
 
 
 def save_artifacts(model, metrics: dict, data: pd.DataFrame, pair: str) -> None:
@@ -180,7 +202,7 @@ def save_artifacts(model, metrics: dict, data: pd.DataFrame, pair: str) -> None:
     Path("model_logs").mkdir(parents=True, exist_ok=True)
 
     # Save model
-    model_path = f"saved_models/lightgbm_forex_swing_model_{timestamp}.pkl"
+    model_path = f"saved_models/buy_model_{pair}_{timestamp}.pkl"
     joblib.dump(model, model_path)
 
     # Save logs
@@ -221,11 +243,10 @@ def main():
             study.optimize(lambda trial: objective(trial, X, y), n_trials=50)
 
             # Model training
-            model, metrics = train_final_model(X, y, study.best_params)
-            data["predicted_buy_signal"] = model.predict(X)
+            model, _ = train_final_model(X, y, study.best_params)
 
-            # Visualization and saving
-            plot_results(data, pair)
+            # Backtesting and saving
+            metrics = backtest_model(model, data, pair)
             save_artifacts(model, metrics, data, pair)
 
 
