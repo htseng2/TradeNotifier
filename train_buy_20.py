@@ -315,8 +315,11 @@ def save_artifacts(
         current_time = datetime.strptime(timestamp, "%Y%m%d_%H%M%S")
         cutoff_time = current_time - pd.Timedelta(days=1)
 
-        # Get max F1 within 1 day window (including current model)
-        recent_entries = pair_log[pd.to_datetime(pair_log["timestamp"]) >= cutoff_time]
+        # Fix timestamp comparison in recent entries filter
+        recent_entries = pair_log[
+            pair_log["timestamp"].apply(lambda x: datetime.strptime(x, "%Y%m%d_%H%M%S"))
+            >= cutoff_time
+        ]
         max_f1 = recent_entries["f1"].max() if not recent_entries.empty else 0
 
         for index, row in pair_log.iterrows():
