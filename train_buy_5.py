@@ -229,21 +229,24 @@ def save_artifacts(model, metrics: dict, data: pd.DataFrame, pair: str) -> None:
     # Clean up old models
     if Path(log_path).exists():
         full_log = pd.read_csv(log_path)
-        pair_log = full_log[
-            (full_log["currency_pair"] == pair) & (full_log["timestamp"] != timestamp)
-        ]
+        pair_log = full_log[full_log["currency_pair"] == pair]  # Include current log
 
         models_to_delete = []
         indices_to_drop = []
 
         current_time = datetime.strptime(timestamp, "%Y%m%d_%H%M%S")
-        current_f1 = metrics["f1"]
+        cutoff_time = current_time - pd.Timedelta(days=1)
+
+        # Get max F1 within 1 day window (including current model)
+        recent_entries = pair_log[pd.to_datetime(pair_log["timestamp"]) >= cutoff_time]
+        max_f1 = recent_entries["f1"].max() if not recent_entries.empty else 0
 
         for index, row in pair_log.iterrows():
             model_time = datetime.strptime(row["timestamp"], "%Y%m%d_%H%M%S")
             age_difference = current_time - model_time
 
-            if age_difference.days >= 1 or row["f1"] < current_f1:
+            # Delete if older than 1 day OR has lower F1 than max in window
+            if age_difference.days >= 1 or row["f1"] < max_f1:
                 models_to_delete.append(row["model_path"])
                 indices_to_drop.append(index)
 

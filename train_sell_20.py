@@ -21,16 +21,16 @@ from datetime import datetime
 
 
 CURRENCY_PAIRS = [
-    "USD_TWD",
-    # "EUR_TWD",
-    # "GBP_TWD",
-    # "AUD_TWD",
-    # "CHF_TWD",
-    # "NZD_TWD",
-    # "JPY_TWD",
+    # "USD_TWD",
+    "EUR_TWD",
+    "GBP_TWD",
+    "AUD_TWD",
+    "CHF_TWD",
+    "NZD_TWD",
+    "JPY_TWD",
 ]
 TRAINING_DATA_YEARS = 10
-LOOP_COUNT = 1
+LOOP_COUNT = 20
 
 
 # ----------------------------
@@ -209,43 +209,43 @@ def backtest_model(model, df):
     print(f"F1-Score: {f1:.4f}")
     print(f"ROC AUC: {roc_auc:.4f}")
 
-    # Plot confusion matrix
-    cm = confusion_matrix(y_true, y_pred)
-    disp = ConfusionMatrixDisplay(confusion_matrix=cm)
-    disp.plot()
-    plt.title("Confusion Matrix")
-    plt.show()
+    # # Plot confusion matrix
+    # cm = confusion_matrix(y_true, y_pred)
+    # disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+    # disp.plot()
+    # plt.title("Confusion Matrix")
+    # plt.show()
 
-    # Modified price plot with both signals
-    sell_trades = df[y_pred == 1]
-    real_sell_trades = df[y_true == 1]  # Get actual sell signals
+    # # Modified price plot with both signals
+    # sell_trades = df[y_pred == 1]
+    # real_sell_trades = df[y_true == 1]  # Get actual sell signals
 
-    plt.figure(figsize=(12, 6))
-    plt.plot(df.index, df["close"], label="Close Price", alpha=0.7)
+    # plt.figure(figsize=(12, 6))
+    # plt.plot(df.index, df["close"], label="Close Price", alpha=0.7)
 
-    # Plot predicted signals
-    plt.scatter(
-        sell_trades.index,
-        sell_trades["close"],
-        marker="v",
-        color="red",
-        label="Predicted Sell",
-        alpha=0.8,
-    )
+    # # Plot predicted signals
+    # plt.scatter(
+    #     sell_trades.index,
+    #     sell_trades["close"],
+    #     marker="v",
+    #     color="red",
+    #     label="Predicted Sell",
+    #     alpha=0.8,
+    # )
 
-    # Plot actual signals
-    plt.scatter(
-        real_sell_trades.index,
-        real_sell_trades["close"],
-        marker="^",
-        color="green",
-        label="Actual Sell",
-        alpha=0.8,
-    )
+    # # Plot actual signals
+    # plt.scatter(
+    #     real_sell_trades.index,
+    #     real_sell_trades["close"],
+    #     marker="^",
+    #     color="green",
+    #     label="Actual Sell",
+    #     alpha=0.8,
+    # )
 
-    plt.legend()
-    plt.title("Predicted vs Actual Sell Signals")
-    plt.show()
+    # plt.legend()
+    # plt.title("Predicted vs Actual Sell Signals")
+    # plt.show()
 
     # Return metrics for saving
     return {
@@ -290,21 +290,24 @@ def save_artifacts(model, metrics, df, pair, gross_er: float) -> None:
     # Clean up old models
     if Path(log_path).exists():
         full_log = pd.read_csv(log_path)
-        pair_log = full_log[
-            (full_log["currency_pair"] == pair) & (full_log["timestamp"] != timestamp)
-        ]
+        pair_log = full_log[full_log["currency_pair"] == pair]  # Include current log
 
         models_to_delete = []
         indices_to_drop = []
 
         current_time = datetime.strptime(timestamp, "%Y%m%d_%H%M%S")
-        current_f1 = metrics["f1"]
+        cutoff_time = current_time - pd.Timedelta(days=1)
+
+        # Get max F1 within 1 day window (including current model)
+        recent_entries = pair_log[pd.to_datetime(pair_log["timestamp"]) >= cutoff_time]
+        max_f1 = recent_entries["f1"].max() if not recent_entries.empty else 0
 
         for index, row in pair_log.iterrows():
             model_time = datetime.strptime(row["timestamp"], "%Y%m%d_%H%M%S")
             age_difference = current_time - model_time
 
-            if age_difference.days >= 1 or row["f1"] < current_f1:
+            # Delete if older than 1 day OR has lower F1 than max in window
+            if age_difference.days >= 1 or row["f1"] < max_f1:
                 models_to_delete.append(row["model_path"])
                 indices_to_drop.append(index)
 

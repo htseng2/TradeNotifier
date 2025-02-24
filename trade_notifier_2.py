@@ -203,6 +203,7 @@ def main():
         message.append(
             f"{pair} Signal: {'BUY' if buy_pred_5_day else 'HOLD'} (5-day) : "
             f"{'SELL' if sell_pred_3_day else 'HOLD'} (3-day)\n"
+            f"Latest Data Date: {latest.name.strftime('%Y-%m-%d')}\n"
             f"Buy Model (5-day) F1: {best_buy_5_day.f1_score:.2%}\n"
             f"Sell Model (3-day) F1: {best_sell_3_day.f1:.2%}\n"
             f"Combined Accuracy: {(best_buy_5_day.accuracy + best_sell_3_day.accuracy) / 2:.2%}\n\n"
