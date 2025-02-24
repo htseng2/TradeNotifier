@@ -21,16 +21,16 @@ from datetime import datetime
 
 
 CURRENCY_PAIRS = [
-    # "USD_TWD",
-    "EUR_TWD",
-    "GBP_TWD",
-    "AUD_TWD",
+    "USD_TWD",
+    # "EUR_TWD",
+    # "GBP_TWD",
+    # "AUD_TWD",
     "CHF_TWD",
-    "NZD_TWD",
-    "JPY_TWD",
+    # "NZD_TWD",
+    # "JPY_TWD",
 ]
-TRAINING_DATA_YEARS = 10
-LOOP_COUNT = 1
+TRAINING_DATA_YEARS = 5
+LOOP_COUNT = 20
 
 
 # ----------------------------
@@ -303,15 +303,21 @@ def save_artifacts(model, metrics, df, pair, gross_er: float) -> None:
             pair_log["timestamp"].apply(lambda x: datetime.strptime(x, "%Y%m%d_%H%M%S"))
             >= cutoff_time
         ]
-        max_f1 = recent_entries["f1"].max() if not recent_entries.empty else 0
+        # Exclude models with perfect precision from max_f1 calculation
+        valid_recent = recent_entries[recent_entries["precision"] < 1.0]
+        max_f1 = valid_recent["f1"].max() if not valid_recent.empty else 0
 
         for index, row in pair_log.iterrows():
             # Fix timestamp parsing format
             model_time = datetime.strptime(row["timestamp"], "%Y%m%d_%H%M%S")
             age_difference = current_time - model_time
 
-            # Delete if older than 1 day OR has lower F1 than max in window
-            if age_difference.days >= 1 or row["f1"] < max_f1:
+            # Delete if: older than 1 day OR has lower F1 than max in window OR has perfect precision
+            if (
+                age_difference.days >= 1
+                or row["f1"] < max_f1
+                or row["precision"] >= 1.0
+            ):
                 models_to_delete.append(row["model_path"])
                 indices_to_drop.append(index)
 
