@@ -20,15 +20,16 @@ from sklearn.metrics import (
 
 CURRENCY_PAIRS = [
     "USD_TWD",
-    # "EUR_TWD",
-    # "GBP_TWD",
-    # "AUD_TWD",
-    # "CHF_TWD",
-    # "NZD_TWD",
-    # "JPY_TWD",
+    "EUR_TWD",
+    "GBP_TWD",
+    "AUD_TWD",
+    "CHF_TWD",
+    "NZD_TWD",
+    "JPY_TWD",
 ]
-LOOP_COUNT = 20
-TRAINING_DATA_YEARS = 10
+LOOP_COUNT = 10
+TRAINING_DATA_YEARS_MAX = 10
+TRAINING_DATA_YEARS_MIN = 3
 FEATURES = ["SMA_50", "SMA_200", "RSI", "MACD", "BB_upper", "BB_lower", "ATR"]
 
 
@@ -43,9 +44,7 @@ def load_data(pair: str) -> pd.DataFrame:
     )
     df["timestamp"] = pd.to_datetime(df["timestamp"])
     df = df.set_index("timestamp")
-    return df.loc[
-        df.index >= pd.Timestamp.now() - pd.DateOffset(years=TRAINING_DATA_YEARS)
-    ]
+    return df
 
 
 def generate_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -157,40 +156,40 @@ def backtest_model(model, data: pd.DataFrame, pair: str) -> dict:
     for metric, value in metrics.items():
         print(f"{metric.capitalize()}: {value:.4f}")
 
-    # Plot confusion matrix
-    cm = confusion_matrix(y_true, y_pred)
-    disp = ConfusionMatrixDisplay(confusion_matrix=cm)
-    disp.plot()
-    plt.title(f"Confusion Matrix - {pair}")
-    plt.show()
+    # # Plot confusion matrix
+    # cm = confusion_matrix(y_true, y_pred)
+    # disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+    # disp.plot()
+    # plt.title(f"Confusion Matrix - {pair}")
+    # plt.show()
 
-    # Price plot with signals
-    plt.figure(figsize=(12, 6))
-    plt.plot(data.index, data["close"], label="Price", alpha=0.7)
+    # # Price plot with signals
+    # plt.figure(figsize=(12, 6))
+    # plt.plot(data.index, data["close"], label="Price", alpha=0.7)
 
-    # Actual buy signals
-    plt.scatter(
-        data.index[data["buy_signal"] == 1],
-        data["close"][data["buy_signal"] == 1],
-        marker="^",
-        color="g",
-        label="Actual Buy",
-        alpha=0.8,
-    )
+    # # Actual buy signals
+    # plt.scatter(
+    #     data.index[data["buy_signal"] == 1],
+    #     data["close"][data["buy_signal"] == 1],
+    #     marker="^",
+    #     color="g",
+    #     label="Actual Buy",
+    #     alpha=0.8,
+    # )
 
-    # Predicted buy signals
-    plt.scatter(
-        data.index[data["predicted_buy_signal"] == 1],
-        data["close"][data["predicted_buy_signal"] == 1],
-        marker="o",
-        color="r",
-        label="Predicted Buy",
-        alpha=0.6,
-    )
+    # # Predicted buy signals
+    # plt.scatter(
+    #     data.index[data["predicted_buy_signal"] == 1],
+    #     data["close"][data["predicted_buy_signal"] == 1],
+    #     marker="o",
+    #     color="r",
+    #     label="Predicted Buy",
+    #     alpha=0.6,
+    # )
 
-    plt.legend()
-    plt.title(f"Buy Signal Comparison - {pair}")
-    plt.show()
+    # plt.legend()
+    # plt.title(f"Buy Signal Comparison - {pair}")
+    # plt.show()
 
     return metrics
 
@@ -273,26 +272,75 @@ def save_artifacts(model, metrics: dict, data: pd.DataFrame, pair: str) -> None:
 
 
 def main():
-    for _ in range(LOOP_COUNT):
-        for pair in CURRENCY_PAIRS:
-            # Data pipeline
-            data = load_data(pair)
-            data = generate_features(data)
-            data = generate_labels(data)
+    for pair in CURRENCY_PAIRS.copy():  # Create copy to safely modify list
+        current_training_years = TRAINING_DATA_YEARS_MAX
+        model_found = False
 
-            X = data[FEATURES]
-            y = data["buy_signal"]
+        while current_training_years >= TRAINING_DATA_YEARS_MIN:
+            # Check for existing recent model with F1 > 0.9
+            if Path("model_logs/train_buy_5_history.csv").exists():
+                log_df = pd.read_csv("model_logs/train_buy_5_history.csv")
+                recent_models = log_df[
+                    (log_df["currency_pair"] == pair)
+                    & (
+                        pd.to_datetime(log_df["timestamp"], format="%Y%m%d_%H%M%S")
+                        > pd.Timestamp.now() - pd.Timedelta(days=1)
+                    )
+                    & (log_df["f1"] > 0.9)
+                ]
+                if not recent_models.empty:
+                    print(f"🚨 Skipping {pair} - recent model with F1 > 0.9 exists")
+                    CURRENCY_PAIRS.remove(pair)
+                    model_found = True
+                    break
 
-            # Hyperparameter optimization
-            study = optuna.create_study(direction="maximize")
-            study.optimize(lambda trial: objective(trial, X, y), n_trials=50)
+            # Training loop
+            for _ in range(LOOP_COUNT):
+                # Data pipeline with current training years
+                data = load_data(pair).loc[
+                    lambda df: df.index
+                    >= pd.Timestamp.now() - pd.DateOffset(years=current_training_years)
+                ]
+                data = generate_features(data)
+                data = generate_labels(data)
 
-            # Model training
-            model, _ = train_final_model(X, y, study.best_params)
+                X = data[FEATURES]
+                y = data["buy_signal"]
 
-            # Backtesting and saving
-            metrics = backtest_model(model, data, pair)
-            save_artifacts(model, metrics, data, pair)
+                # Hyperparameter optimization
+                study = optuna.create_study(direction="maximize")
+                study.optimize(lambda trial: objective(trial, X, y), n_trials=50)
+
+                # Model training
+                model, _ = train_final_model(X, y, study.best_params)
+
+                # Backtesting and saving
+                metrics = backtest_model(model, data, pair)
+                save_artifacts(model, metrics, data, pair)
+
+                # After training and evaluation
+                if metrics.get("f1", 0) > 0.9:
+                    print(f"✅ Successfully trained model for {pair} with F1 > 0.9")
+                    CURRENCY_PAIRS.remove(pair)
+                    model_found = True
+                    break
+
+            if model_found:
+                break
+
+            # Reduce training window if no success
+            current_training_years -= 1
+            print(
+                f"🔁 Reducing training window to {current_training_years} years for {pair}"
+            )
+
+        if not model_found:
+            print(f"❌ Giving up on {pair} - minimum training window reached")
+            CURRENCY_PAIRS.remove(pair)
+
+        if not CURRENCY_PAIRS:
+            print("🎉 All currency pairs processed")
+            break
 
 
 if __name__ == "__main__":

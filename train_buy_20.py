@@ -19,16 +19,17 @@ from sklearn.metrics import (
 )
 
 CURRENCY_PAIRS = [
-    # "USD_TWD",
-    # "EUR_TWD",
-    # "GBP_TWD",
+    "USD_TWD",
+    "EUR_TWD",
+    "GBP_TWD",
     "AUD_TWD",
     "CHF_TWD",
     "NZD_TWD",
-    # "JPY_TWD",
+    "JPY_TWD",
 ]
-LOOP_COUNT = 20
-TRAINING_DATA_YEARS = 8
+LOOP_COUNT = 10
+TRAINING_DATA_YEARS_MAX = 10
+TRAINING_DATA_YEARS_MIN = 3
 FEATURES = ["SMA_50", "SMA_200", "RSI", "MACD", "BB_upper", "BB_lower", "ATR"]
 
 
@@ -44,7 +45,7 @@ def load_data(pair: str) -> pd.DataFrame:
     df["timestamp"] = pd.to_datetime(df["timestamp"])
     df = df.set_index("timestamp")
     return df.loc[
-        df.index >= pd.Timestamp.now() - pd.DateOffset(years=TRAINING_DATA_YEARS)
+        df.index >= pd.Timestamp.now() - pd.DateOffset(years=TRAINING_DATA_YEARS_MAX)
     ]
 
 
@@ -351,27 +352,67 @@ def save_artifacts(
 
 
 def main():
-    for _ in range(LOOP_COUNT):
-        for pair in CURRENCY_PAIRS:
-            # Data pipeline
-            data = load_data(pair)
-            data = generate_features(data)
-            gross_expected_return = find_gross_expected_return(data)
-            data = generate_labels(data, gross_expected_return=gross_expected_return)
+    for pair in CURRENCY_PAIRS.copy():
+        current_training_years = TRAINING_DATA_YEARS_MAX
+        model_found = False
 
-            X = data[FEATURES]
-            y = data["buy_signal"]
+        while current_training_years >= TRAINING_DATA_YEARS_MIN:
+            if Path("model_logs/train_buy_20_history.csv").exists():
+                log_df = pd.read_csv("model_logs/train_buy_20_history.csv")
+                recent_models = log_df[
+                    (log_df["currency_pair"] == pair)
+                    & (
+                        pd.to_datetime(log_df["timestamp"], format="%Y%m%d_%H%M%S")
+                        > pd.Timestamp.now() - pd.Timedelta(days=1)
+                    )
+                    & (log_df["f1"] > 0.9)
+                ]
+                if not recent_models.empty:
+                    print(f"🚨 Skipping {pair} - recent model with F1 > 0.9 exists")
+                    CURRENCY_PAIRS.remove(pair)
+                    model_found = True
+                    break
 
-            # Hyperparameter optimization
-            study = optuna.create_study(direction="maximize")
-            study.optimize(lambda trial: objective(trial, X, y), n_trials=50)
+            for _ in range(LOOP_COUNT):
+                data = load_data(pair).loc[
+                    lambda df: df.index
+                    >= pd.Timestamp.now() - pd.DateOffset(years=current_training_years)
+                ]
+                data = generate_features(data)
+                gross_expected_return = find_gross_expected_return(data)
+                data = generate_labels(
+                    data, gross_expected_return=gross_expected_return
+                )
 
-            # Model training
-            model, _ = train_final_model(X, y, study.best_params)
+                X = data[FEATURES]
+                y = data["buy_signal"]
 
-            # Backtesting and saving
-            metrics = backtest_model(model, data, pair)
-            save_artifacts(model, metrics, data, pair, gross_expected_return)
+                study = optuna.create_study(direction="maximize")
+                study.optimize(lambda trial: objective(trial, X, y), n_trials=50)
+
+                model, metrics = train_final_model(X, y, study.best_params)
+
+                if metrics.get("f1", 0) > 0.9:
+                    print(f"✅ Successfully trained model for {pair} with F1 > 0.9")
+                    CURRENCY_PAIRS.remove(pair)
+                    model_found = True
+                    break
+
+            if model_found:
+                break
+
+            current_training_years -= 1
+            print(
+                f"🔁 Reducing training window to {current_training_years} years for {pair}"
+            )
+
+        if not model_found:
+            print(f"❌ Giving up on {pair} - minimum training window reached")
+            CURRENCY_PAIRS.remove(pair)
+
+        if not CURRENCY_PAIRS:
+            print("🎉 All currency pairs processed")
+            break
 
 
 if __name__ == "__main__":

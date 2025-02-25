@@ -29,8 +29,9 @@ CURRENCY_PAIRS = [
     "NZD_TWD",
     "JPY_TWD",
 ]
-TRAINING_DATA_YEARS = 10
-LOOP_COUNT = 20
+LOOP_COUNT = 10
+TRAINING_DATA_YEARS_MAX = 10
+TRAINING_DATA_YEARS_MIN = 3
 
 FEATURES = [
     "RSI",
@@ -67,7 +68,7 @@ def load_data(pair: str) -> pd.DataFrame:
     df["timestamp"] = pd.to_datetime(df["timestamp"])
     df = df.set_index("timestamp")
     return df.loc[
-        df.index >= pd.Timestamp.now() - pd.DateOffset(years=TRAINING_DATA_YEARS)
+        df.index >= pd.Timestamp.now() - pd.DateOffset(years=TRAINING_DATA_YEARS_MAX)
     ]
 
 
@@ -357,24 +358,65 @@ def save_artifacts(model, metrics, df, pair, gross_er: float) -> None:
 # 🔥 Main Execution
 # ----------------------------
 if __name__ == "__main__":
-    for _ in range(LOOP_COUNT):
-        for pair in CURRENCY_PAIRS:
-            df = load_data(pair)
-            df = add_technical_indicators(df)
+    for pair in CURRENCY_PAIRS.copy():
+        current_training_years = TRAINING_DATA_YEARS_MAX
+        model_found = False
 
-            # Dynamic threshold finding
-            loss_threshold = find_gross_expected_loss(df)
-            df = generate_sell_labels(df, loss_threshold=loss_threshold)
+        while current_training_years >= TRAINING_DATA_YEARS_MIN:
+            if Path("model_logs/train_sell_20_history.csv").exists():
+                log_df = pd.read_csv("model_logs/train_sell_20_history.csv")
+                recent_models = log_df[
+                    (log_df["currency_pair"] == pair)
+                    & (
+                        pd.to_datetime(log_df["timestamp"], format="%Y%m%d_%H%M%S")
+                        > pd.Timestamp.now() - pd.Timedelta(days=1)
+                    )
+                    & (log_df["f1"] > 0.9)
+                ]
+                if not recent_models.empty:
+                    print(f"🚨 Skipping {pair} - recent model with F1 > 0.9 exists")
+                    CURRENCY_PAIRS.remove(pair)
+                    model_found = True
+                    break
 
-            X, y = df[FEATURES], df["sell_signal"]
+            for _ in range(LOOP_COUNT):
+                df = load_data(pair).loc[
+                    lambda df: df.index
+                    >= pd.Timestamp.now() - pd.DateOffset(years=current_training_years)
+                ]
+                df = add_technical_indicators(df)
 
-            # Hyperparameter optimization
-            study = optuna.create_study(direction="maximize")
-            study.optimize(lambda trial: objective(trial, X, y), n_trials=50)
+                loss_threshold = find_gross_expected_loss(df)
+                df = generate_sell_labels(df, loss_threshold=loss_threshold)
 
-            # Final model training
-            model = lgb.LGBMClassifier(**study.best_params)
-            model.fit(X, y)
+                X, y = df[FEATURES], df["sell_signal"]
 
-            metrics = backtest_model(model, df)
-            save_artifacts(model, metrics, df, pair, loss_threshold)
+                study = optuna.create_study(direction="maximize")
+                study.optimize(lambda trial: objective(trial, X, y), n_trials=50)
+
+                model = lgb.LGBMClassifier(**study.best_params)
+                model.fit(X, y)
+
+                metrics = backtest_model(model, df)
+
+                if metrics.get("f1", 0) > 0.9:
+                    print(f"✅ Successfully trained model for {pair} with F1 > 0.9")
+                    CURRENCY_PAIRS.remove(pair)
+                    model_found = True
+                    break
+
+            if model_found:
+                break
+
+            current_training_years -= 1
+            print(
+                f"🔁 Reducing training window to {current_training_years} years for {pair}"
+            )
+
+        if not model_found:
+            print(f"❌ Giving up on {pair} - minimum training window reached")
+            CURRENCY_PAIRS.remove(pair)
+
+        if not CURRENCY_PAIRS:
+            print("🎉 All currency pairs processed")
+            break

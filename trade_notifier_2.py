@@ -157,7 +157,7 @@ def main():
         # Get all model versions
         best_buy_5 = (
             buy_history_5_day[buy_history_5_day.currency_pair == pair]
-            .nlargest(1, "f1_score")
+            .nlargest(1, "f1")
             .iloc[0]
         )
         best_buy_20 = (
@@ -200,7 +200,7 @@ def main():
             f"  Long-term:  {'BUY' if buy_20_pred else 'HOLD'} (20-day) : {'SELL' if sell_20_pred else 'HOLD'} (20-day)\n"
             f"  Latest Data: {latest.name.strftime('%Y-%m-%d')}\n"
             f"  Model Performance:\n"
-            f"  - Buy 5-day F1: {best_buy_5.f1_score:.2%}\n"
+            f"  - Buy 5-day F1: {best_buy_5.f1:.2%}\n"
             f"  - Buy 20-day F1: {best_buy_20.f1:.2%}\n"
             f"  - Sell 3-day F1: {best_sell_3.f1:.2%}\n"
             f"  - Sell 20-day F1: {best_sell_20.f1:.2%}\n\n"
