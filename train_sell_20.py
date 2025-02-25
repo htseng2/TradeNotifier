@@ -22,14 +22,14 @@ from datetime import datetime
 
 CURRENCY_PAIRS = [
     "USD_TWD",
-    # "EUR_TWD",
-    # "GBP_TWD",
-    # "AUD_TWD",
+    "EUR_TWD",
+    "GBP_TWD",
+    "AUD_TWD",
     "CHF_TWD",
-    # "NZD_TWD",
-    # "JPY_TWD",
+    "NZD_TWD",
+    "JPY_TWD",
 ]
-TRAINING_DATA_YEARS = 5
+TRAINING_DATA_YEARS = 10
 LOOP_COUNT = 20
 
 FEATURES = [
