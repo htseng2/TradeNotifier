@@ -141,9 +141,11 @@ def main():
         # ("JPY", "TWD"),  # Not for investment, but track for fun
     ]
 
-    # Model loading simplified
+    # Load both model versions
     buy_history_5_day = pd.read_csv("model_logs/train_buy_5_history.csv")
+    buy_history_20_day = pd.read_csv("model_logs/train_buy_20_history.csv")
     sell_history_3_day = pd.read_csv("model_logs/train_sell_3_history.csv")
+    sell_history_20_day = pd.read_csv("model_logs/train_sell_20_history.csv")
 
     message = ["Forex Trading Signals:\n"]
 
@@ -152,37 +154,56 @@ def main():
         data = prepare_data_table(fetch_forex_data(from_symbol, to_symbol))
         data = generate_features(data)
 
-        # Simplified model selection
-        best_buy_5_day = (
+        # Get all model versions
+        best_buy_5 = (
             buy_history_5_day[buy_history_5_day.currency_pair == pair]
             .nlargest(1, "f1_score")
             .iloc[0]
         )
-        best_sell_3_day = (
+        best_buy_20 = (
+            buy_history_20_day[buy_history_20_day.currency_pair == pair]
+            .nlargest(1, "f1")
+            .iloc[0]
+        )
+        best_sell_3 = (
             sell_history_3_day[sell_history_3_day.currency_pair == pair]
             .nlargest(1, "f1")
             .iloc[0]
         )
-
-        buy_model_5_day = joblib.load(best_buy_5_day["model_path"])
-        sell_model_3_day = joblib.load(best_sell_3_day["model_path"])
-
-        # Prediction simplified
-        latest = data.iloc[-1]
-        buy_pred_5_day = buy_model_5_day.predict([latest[BUY_FEATURES]])[0]
-        sell_pred_3_day = int(
-            sell_model_3_day.predict([latest[SELL_FEATURES]])[0] > 0.5
+        best_sell_20 = (
+            sell_history_20_day[sell_history_20_day.currency_pair == pair]
+            .nlargest(1, "f1")
+            .iloc[0]
         )
 
-        predict_and_plot(data.copy(), buy_model_5_day, sell_model_3_day, pair)
+        # Load all models
+        buy_model_5 = joblib.load(best_buy_5["model_path"])
+        buy_model_20 = joblib.load(best_buy_20["model_path"])
+        sell_model_3 = joblib.load(best_sell_3["model_path"])
+        sell_model_20 = joblib.load(best_sell_20["model_path"])
 
+        # Generate predictions for all models
+        latest = data.iloc[-1]
+        buy_5_pred = buy_model_5.predict([latest[BUY_FEATURES]])[0]
+        buy_20_pred = buy_model_20.predict([latest[BUY_FEATURES]])[0]
+        sell_3_pred = int(sell_model_3.predict([latest[SELL_FEATURES]])[0] > 0.5)
+        sell_20_pred = int(sell_model_20.predict([latest[SELL_FEATURES]])[0] > 0.5)
+
+        # Generate plots for both model pairs
+        # predict_and_plot(data.copy(), buy_model_5, sell_model_3, f"{pair} (5D/3D)")
+        # predict_and_plot(data.copy(), buy_model_20, sell_model_20, f"{pair} (20D/20D)")
+
+        # Update message with all signals
         message.append(
-            f"{pair} Signal: {'BUY' if buy_pred_5_day else 'HOLD'} (5-day) : "
-            f"{'SELL' if sell_pred_3_day else 'HOLD'} (3-day)\n"
-            f"Latest Data Date: {latest.name.strftime('%Y-%m-%d')}\n"
-            f"Buy Model (5-day) F1: {best_buy_5_day.f1_score:.2%}\n"
-            f"Sell Model (3-day) F1: {best_sell_3_day.f1:.2%}\n"
-            f"Combined Accuracy: {(best_buy_5_day.accuracy + best_sell_3_day.accuracy) / 2:.2%}\n\n"
+            f"{pair} Signals:\n"
+            f"  Short-term: {'BUY' if buy_5_pred else 'HOLD'} (5-day) : {'SELL' if sell_3_pred else 'HOLD'} (3-day)\n"
+            f"  Long-term:  {'BUY' if buy_20_pred else 'HOLD'} (20-day) : {'SELL' if sell_20_pred else 'HOLD'} (20-day)\n"
+            f"  Latest Data: {latest.name.strftime('%Y-%m-%d')}\n"
+            f"  Model Performance:\n"
+            f"  - Buy 5-day F1: {best_buy_5.f1_score:.2%}\n"
+            f"  - Buy 20-day F1: {best_buy_20.f1:.2%}\n"
+            f"  - Sell 3-day F1: {best_sell_3.f1:.2%}\n"
+            f"  - Sell 20-day F1: {best_sell_20.f1:.2%}\n\n"
         )
 
     send_notification("\n".join(message))

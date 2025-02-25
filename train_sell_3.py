@@ -21,16 +21,16 @@ from datetime import datetime
 
 
 CURRENCY_PAIRS = [
-    "USD_TWD",
+    # "USD_TWD",
     # "EUR_TWD",
     # "GBP_TWD",
     # "AUD_TWD",
-    # "CHF_TWD",
+    "CHF_TWD",
     # "NZD_TWD",
-    # "JPY_TWD",
+    "JPY_TWD",
 ]
-TRAINING_DATA_YEARS = 10
-LOOP_COUNT = 1
+TRAINING_DATA_YEARS = 6
+LOOP_COUNT = 20
 
 FEATURES = [
     "RSI",
@@ -216,43 +216,43 @@ def backtest_model(model, df):
     print(f"F1-Score: {f1:.4f}")
     print(f"ROC AUC: {roc_auc:.4f}")
 
-    # Plot confusion matrix
-    cm = confusion_matrix(y_true, y_pred)
-    disp = ConfusionMatrixDisplay(confusion_matrix=cm)
-    disp.plot()
-    plt.title("Confusion Matrix")
-    plt.show()
+    # # Plot confusion matrix
+    # cm = confusion_matrix(y_true, y_pred)
+    # disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+    # disp.plot()
+    # plt.title("Confusion Matrix")
+    # plt.show()
 
-    # Modified price plot with both signals
-    sell_trades = df[y_pred == 1]
-    real_sell_trades = df[y_true == 1]  # Get actual sell signals
+    # # Modified price plot with both signals
+    # sell_trades = df[y_pred == 1]
+    # real_sell_trades = df[y_true == 1]  # Get actual sell signals
 
-    plt.figure(figsize=(12, 6))
-    plt.plot(df.index, df["close"], label="Close Price", alpha=0.7)
+    # plt.figure(figsize=(12, 6))
+    # plt.plot(df.index, df["close"], label="Close Price", alpha=0.7)
 
-    # Plot predicted signals
-    plt.scatter(
-        sell_trades.index,
-        sell_trades["close"],
-        marker="v",
-        color="red",
-        label="Predicted Sell",
-        alpha=0.8,
-    )
+    # # Plot predicted signals
+    # plt.scatter(
+    #     sell_trades.index,
+    #     sell_trades["close"],
+    #     marker="v",
+    #     color="red",
+    #     label="Predicted Sell",
+    #     alpha=0.8,
+    # )
 
-    # Plot actual signals
-    plt.scatter(
-        real_sell_trades.index,
-        real_sell_trades["close"],
-        marker="^",
-        color="green",
-        label="Actual Sell",
-        alpha=0.8,
-    )
+    # # Plot actual signals
+    # plt.scatter(
+    #     real_sell_trades.index,
+    #     real_sell_trades["close"],
+    #     marker="^",
+    #     color="green",
+    #     label="Actual Sell",
+    #     alpha=0.8,
+    # )
 
-    plt.legend()
-    plt.title("Predicted vs Actual Sell Signals")
-    plt.show()
+    # plt.legend()
+    # plt.title("Predicted vs Actual Sell Signals")
+    # plt.show()
 
     # Return metrics for saving
     return {

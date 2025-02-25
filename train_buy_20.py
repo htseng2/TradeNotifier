@@ -19,16 +19,16 @@ from sklearn.metrics import (
 )
 
 CURRENCY_PAIRS = [
-    "USD_TWD",
+    # "USD_TWD",
     # "EUR_TWD",
     # "GBP_TWD",
-    # "AUD_TWD",
-    # "CHF_TWD",
-    # "NZD_TWD",
+    "AUD_TWD",
+    "CHF_TWD",
+    "NZD_TWD",
     # "JPY_TWD",
 ]
 LOOP_COUNT = 20
-TRAINING_DATA_YEARS = 10
+TRAINING_DATA_YEARS = 8
 FEATURES = ["SMA_50", "SMA_200", "RSI", "MACD", "BB_upper", "BB_lower", "ATR"]
 
 
