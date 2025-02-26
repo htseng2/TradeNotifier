@@ -391,7 +391,10 @@ def main():
                 study = optuna.create_study(direction="maximize")
                 study.optimize(lambda trial: objective(trial, X, y), n_trials=50)
 
-                model, metrics = train_final_model(X, y, study.best_params)
+                model, _ = train_final_model(X, y, study.best_params)
+
+                metrics = backtest_model(model, data, pair)
+                save_artifacts(model, metrics, data, pair, gross_expected_return)
 
                 if metrics.get("f1", 0) > 0.9 and metrics.get("precision", 1.0) < 1.0:
                     print(

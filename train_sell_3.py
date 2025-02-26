@@ -376,6 +376,7 @@ if __name__ == "__main__":
 
                 model = train_lightgbm(df)
                 metrics = backtest_model(model, df)
+                save_artifacts(model, metrics, df, pair)
 
                 if metrics.get("f1", 0) > 0.9 and metrics.get("precision", 1.0) < 1.0:
                     print(
