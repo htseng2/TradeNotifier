@@ -152,6 +152,17 @@ def main():
     for from_symbol, to_symbol in currency_pairs:
         pair = f"{from_symbol}_{to_symbol}"
         data = prepare_data_table(fetch_forex_data(from_symbol, to_symbol))
+
+        # Add CSV append functionality
+        filename = f"Alpha_Vantage_Data/{pair}.csv"
+        if os.path.exists(filename):
+            existing_df = pd.read_csv(filename, index_col=0, parse_dates=True)
+            new_data = data[~data.index.isin(existing_df.index)]
+            combined_df = pd.concat([existing_df, new_data]).sort_index()
+        else:
+            combined_df = data
+        combined_df.to_csv(filename)
+
         data = generate_features(data)
 
         # Get all model versions
