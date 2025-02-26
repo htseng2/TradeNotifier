@@ -213,6 +213,7 @@ def main():
             f"  Model Performance:\n"
             f"  - Buy 5-day F1: {best_buy_5.f1:.2%}\n"
             f"  - Buy 20-day F1: {best_buy_20.f1:.2%}\n"
+            f"  - Gross Expected Return: {best_buy_20.gross_expected_return:.2%}\n"
             f"  - Sell 3-day F1: {best_sell_3.f1:.2%}\n"
             f"  - Sell 20-day F1: {best_sell_20.f1:.2%}\n\n"
         )
