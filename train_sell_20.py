@@ -372,6 +372,7 @@ if __name__ == "__main__":
                         > pd.Timestamp.now() - pd.Timedelta(days=1)
                     )
                     & (log_df["f1"] > 0.9)
+                    & (log_df["precision"] < 1.0)
                 ]
                 if not recent_models.empty:
                     print(f"🚨 Skipping {pair} - recent model with F1 > 0.9 exists")
@@ -399,8 +400,10 @@ if __name__ == "__main__":
 
                 metrics = backtest_model(model, df)
 
-                if metrics.get("f1", 0) > 0.9:
-                    print(f"✅ Successfully trained model for {pair} with F1 > 0.9")
+                if metrics.get("f1", 0) > 0.9 and metrics.get("precision", 1.0) < 1.0:
+                    print(
+                        f"✅ Successfully trained model for {pair} with F1 > 0.9 and precision < 1.0"
+                    )
                     CURRENCY_PAIRS.remove(pair)
                     model_found = True
                     break
