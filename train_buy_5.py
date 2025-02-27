@@ -18,6 +18,15 @@ from sklearn.metrics import (
     ConfusionMatrixDisplay,
 )
 
+# Add these with other constants at the top
+MODEL_REQUIREMENTS = {
+    "MIN_VALIDATION_F1": 0.8,
+    "MAX_ALLOWED_PRECISION": 1.0,
+    "MAX_AGE_DAYS": 1,
+    "MIN_TRAINING_YEARS": 3,
+    "MAX_TRAINING_YEARS": 10,
+}
+
 CURRENCY_PAIRS = [
     "USD_TWD",
     "EUR_TWD",
@@ -124,18 +133,59 @@ def objective(trial, X: pd.DataFrame, y: pd.Series) -> float:
 
 
 def train_final_model(X: pd.DataFrame, y: pd.Series, best_params: dict) -> tuple:
-    """Train and evaluate final model with best parameters"""
-    model = lgb.LGBMClassifier(**best_params)
-    model.fit(X, y)
-
-    predictions = model.predict(X)
-    return model, {
-        "accuracy": accuracy_score(y, predictions),
-        "precision": precision_score(y, predictions),
-        "recall": recall_score(y, predictions),
-        "f1": f1_score(y, predictions),
-        "roc_auc": roc_auc_score(y, predictions),
+    """Train and evaluate final model with best parameters using time series splits"""
+    tscv = TimeSeriesSplit(n_splits=5)
+    metrics = {
+        "train_accuracy": [],
+        "train_precision": [],
+        "train_recall": [],
+        "train_f1": [],
+        "train_roc_auc": [],
+        "val_accuracy": [],
+        "val_precision": [],
+        "val_recall": [],
+        "val_f1": [],
+        "val_roc_auc": [],
     }
+
+    # Cross-validate with time series splits
+    for train_idx, val_idx in tscv.split(X):
+        X_train, X_val = X.iloc[train_idx], X.iloc[val_idx]
+        y_train, y_val = y.iloc[train_idx], y.iloc[val_idx]
+
+        model = lgb.LGBMClassifier(**best_params)
+        model.fit(X_train, y_train)
+
+        # Training metrics
+        train_pred = model.predict(X_train)
+        metrics["train_accuracy"].append(accuracy_score(y_train, train_pred))
+        metrics["train_precision"].append(precision_score(y_train, train_pred))
+        metrics["train_recall"].append(recall_score(y_train, train_pred))
+        metrics["train_f1"].append(f1_score(y_train, train_pred))
+        metrics["train_roc_auc"].append(roc_auc_score(y_train, train_pred))
+
+        # Validation metrics
+        val_pred = model.predict(X_val)
+        metrics["val_accuracy"].append(accuracy_score(y_val, val_pred))
+        metrics["val_precision"].append(precision_score(y_val, val_pred))
+        metrics["val_recall"].append(recall_score(y_val, val_pred))
+        metrics["val_f1"].append(f1_score(y_val, val_pred))
+        metrics["val_roc_auc"].append(roc_auc_score(y_val, val_pred))
+
+    # Average metrics across folds
+    avg_metrics = {k: np.mean(v) for k, v in metrics.items()}
+
+    # Calculate overfitting indicators
+    for metric in ["accuracy", "precision", "recall", "f1", "roc_auc"]:
+        avg_metrics[f"{metric}_diff"] = (
+            avg_metrics[f"train_{metric}"] - avg_metrics[f"val_{metric}"]
+        )
+
+    # Train final model on entire dataset
+    final_model = lgb.LGBMClassifier(**best_params)
+    final_model.fit(X, y)
+
+    return final_model, avg_metrics
 
 
 def backtest_model(model, data: pd.DataFrame, pair: str) -> dict:
@@ -236,7 +286,9 @@ def save_artifacts(model, metrics: dict, data: pd.DataFrame, pair: str) -> None:
         indices_to_drop = []
 
         current_time = datetime.strptime(timestamp, "%Y%m%d_%H%M%S")
-        cutoff_time = current_time - pd.Timedelta(days=1)
+        cutoff_time = current_time - pd.Timedelta(
+            days=MODEL_REQUIREMENTS["MAX_AGE_DAYS"]
+        )
 
         # Fix timestamp comparison in recent entries filter
         recent_entries = pair_log[
@@ -244,8 +296,11 @@ def save_artifacts(model, metrics: dict, data: pd.DataFrame, pair: str) -> None:
             >= cutoff_time
         ]
         # Exclude models with perfect precision from max_f1 calculation
-        valid_recent = recent_entries[recent_entries["precision"] < 1.0]
-        max_f1 = valid_recent["f1"].max() if not valid_recent.empty else 0
+        valid_recent = recent_entries[
+            recent_entries["val_precision"]
+            < MODEL_REQUIREMENTS["MAX_ALLOWED_PRECISION"]
+        ]
+        max_f1 = valid_recent["val_f1"].max() if not valid_recent.empty else 0
 
         for index, row in pair_log.iterrows():
             model_time = datetime.strptime(row["timestamp"], "%Y%m%d_%H%M%S")
@@ -253,9 +308,9 @@ def save_artifacts(model, metrics: dict, data: pd.DataFrame, pair: str) -> None:
 
             # Delete if: older than 1 day OR has lower F1 than max in window OR has perfect precision
             if (
-                age_difference.days >= 1
-                or row["f1"] < max_f1
-                or row["precision"] >= 1.0
+                age_difference.days >= MODEL_REQUIREMENTS["MAX_AGE_DAYS"]
+                or row["val_f1"] < max_f1
+                or row["val_precision"] >= MODEL_REQUIREMENTS["MAX_ALLOWED_PRECISION"]
             ):
                 models_to_delete.append(row["model_path"])
                 indices_to_drop.append(index)
@@ -286,13 +341,19 @@ def main():
                     (log_df["currency_pair"] == pair)
                     & (
                         pd.to_datetime(log_df["timestamp"], format="%Y%m%d_%H%M%S")
-                        > pd.Timestamp.now() - pd.Timedelta(days=1)
+                        > pd.Timestamp.now()
+                        - pd.Timedelta(days=MODEL_REQUIREMENTS["MAX_AGE_DAYS"])
                     )
-                    & (log_df["f1"] > 0.9)
-                    & (log_df["precision"] < 1.0)
+                    & (log_df["val_f1"] > MODEL_REQUIREMENTS["MIN_VALIDATION_F1"])
+                    & (
+                        log_df["val_precision"]
+                        < MODEL_REQUIREMENTS["MAX_ALLOWED_PRECISION"]
+                    )
                 ]
                 if not recent_models.empty:
-                    print(f"🚨 Skipping {pair} - recent model with F1 > 0.9 exists")
+                    print(
+                        f"🚨 Skipping {pair} - recent model with validation F1 > {MODEL_REQUIREMENTS['MIN_VALIDATION_F1']} and precision < {MODEL_REQUIREMENTS['MAX_ALLOWED_PRECISION']} exists"
+                    )
                     CURRENCY_PAIRS.remove(pair)
                     model_found = True
                     break
@@ -315,16 +376,20 @@ def main():
                 study.optimize(lambda trial: objective(trial, X, y), n_trials=50)
 
                 # Model training
-                model, _ = train_final_model(X, y, study.best_params)
+                model, metrics = train_final_model(X, y, study.best_params)
 
                 # Backtesting and saving
-                metrics = backtest_model(model, data, pair)
                 save_artifacts(model, metrics, data, pair)
 
                 # After training and evaluation
-                if metrics.get("f1", 0) > 0.9 and metrics.get("precision", 1.0) < 1.0:
+                if (
+                    metrics.get("val_f1", 0) > MODEL_REQUIREMENTS["MIN_VALIDATION_F1"]
+                    and metrics.get("val_precision", 1.0)
+                    < MODEL_REQUIREMENTS["MAX_ALLOWED_PRECISION"]
+                ):
                     print(
-                        f"✅ Successfully trained model for {pair} with F1 > 0.9 and precision < 1.0"
+                        f"✅ Successfully trained model for {pair} with validation F1 > {MODEL_REQUIREMENTS['MIN_VALIDATION_F1']} "
+                        f"and precision < {MODEL_REQUIREMENTS['MAX_ALLOWED_PRECISION']}"
                     )
                     CURRENCY_PAIRS.remove(pair)
                     model_found = True

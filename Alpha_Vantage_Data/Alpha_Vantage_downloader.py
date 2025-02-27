@@ -51,17 +51,17 @@ def prepare_data_table(data):
 
 def main():
     currency_pairs = [
-        # ("USD", "TWD"),
-        # ("EUR", "TWD"),
-        # ("SGD", "TWD"),
-        # ("GBP", "TWD"),
-        # ("AUD", "TWD"),
-        # ("CHF", "TWD"),
-        # ("CAD", "TWD"),
-        # ("JPY", "TWD"),
-        # ("HKD", "TWD"),
+        ("USD", "TWD"),
+        ("EUR", "TWD"),
+        ("GBP", "TWD"),
+        ("AUD", "TWD"),
+        ("CHF", "TWD"),
+        ("JPY", "TWD"),
         ("NZD", "TWD"),
         # Not considering the following pairs for now
+        # ("HKD", "TWD"),
+        # ("SGD", "TWD"),
+        # ("CAD", "TWD"),
         # ("CNY", "TWD"),
         # ("THB", "TWD"),
         # ("ZAR", "TWD"),
@@ -98,10 +98,11 @@ def main():
                 combined_df = pd.concat([existing_df, new_data]).sort_index()
             else:
                 combined_df = df
+                new_data = df  # Initialize new_data when creating fresh file
 
             combined_df.to_csv(filename)
             print(
-                f"Updated {filename} with {len(combined_df)} total records ({len(new_data) if os.path.exists(filename) else len(df)} new)"
+                f"Updated {filename} with {len(combined_df)} total records ({len(new_data)} new)"
             )
 
         except Exception as e:
